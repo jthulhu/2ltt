@@ -118,6 +118,17 @@ namespace Id
   end
 end Id
 
+-- Composition
+
+namespace Arrow
+  def after {α β γ : U} (f : α →∘ β) (g : β →∘ γ) : α →∘ γ :=
+    Λ x => g $∘ f x
+
+  def compose {α β γ : U} (f : β →∘ γ) (g : α →∘ β) : α →∘ γ :=
+    Λ x => f $∘ g x
+end Arrow
+
+infixr:90 " ∘∘ " => Arrow.compose
 
 -- Homotopies
 
@@ -159,17 +170,18 @@ namespace Homotopy
         apply Id.concat_refl
       Id.elim (P := P) h x y p
   end
+
+  section
+    variable {α β γ ρ : U}
+    variable (f g : α →∘ β) (h : ρ →∘ α) (h' : β →∘ γ)
+    variable (H : f ~ g)
+    theorem comp_homm : f ∘∘ h ~ g ∘∘ h :=
+      Λ w => H (h w)
+
+    theorem homm_comp : h' ∘∘ f ~ h' ∘∘ g :=
+      Λ x => Id.subst (P := fun c => h' ∘∘ f $∘ x =∘ h' $∘ c) (H x) (Id.refl _)
+  end
 end Homotopy
-
-namespace Arrow
-  def after {α β γ : U} (f : α →∘ β) (g : β →∘ γ) : α →∘ γ :=
-    Λ x => g $∘ f x
-
-  def compose {α β γ : U} (f : β →∘ γ) (g : α →∘ β) : α →∘ γ :=
-    Λ x => f $∘ g x
-end Arrow
-
-infixr:90 " ∘∘ " => Arrow.compose
 
 -- Equivalences
 
@@ -183,30 +195,74 @@ def U.is_contractible (α : U) : U :=
   Σ∘ a : α, Π∘ x : α, a =∘ x
 
 namespace Arrow
-  def is_contractible {α β : U} (f : α →∘ β) : U :=
+  section
+  variable {α β : U}
+  variable (f : α →∘ β)
+  
+  def is_contractible : U :=
     Π∘ y : β, Arrow.fiber f y |>.is_contractible
 
-  def id {α : U} : α →∘ α :=
+  def id : α →∘ α :=
     Λ x => x
 
-  def qinv {α β : U} (f : α →∘ β) : U :=
+  @[simp]
+  theorem id_simp (x : α) : id x = x := by
+    rfl
+
+  def qinv : U :=
     Σ∘ g : β →∘ α, (f ∘∘ g ~ id) ×∘ (g ∘∘ f ~ id)
+
+  def linv : U :=
+    Σ∘ g : β →∘ α, g ∘∘ f ~ id
+
+  def rinv : U :=
+    Σ∘ g : β →∘ α, f ∘∘ g ~ id
+
+  def biinv : U :=
+    linv f ×∘ rinv f
+
+  def qinv_to_biinv (q : qinv f) : biinv f :=
+    let g := Sigma.pr₁ q
+    let (h₁, h₂) :=
+      let r := Sigma.pr₂ q
+      (Sigma.pr₁ r, Sigma.pr₂ r)
+    let left : linv f := ⟪g, h₂⟫
+    let right : rinv f := ⟪g, h₁⟫
+    ⟪left, right⟫
+
+  def biinv_to_qinv (b : biinv f) : qinv f :=
+    let g := Sigma.pr₁ <| Sigma.pr₁ b
+    let h₁ := Sigma.pr₂ <| Sigma.pr₁ b
+    let h := Sigma.pr₁ <| Sigma.pr₂ b
+    let h₂ := Sigma.pr₂ <| Sigma.pr₂ b
+    let γ : g ~ h :=
+      let p₁ : g ~ g ∘∘ f ∘∘ h := Λ z => by
+        apply Id.subst (P := fun c => g z =∘ g c) (h₂ z)⁻¹
+        simp
+        apply Id.refl
+      let p₂ : g ∘∘ f ∘∘ h ~ h := Λ z => by
+        apply h₁ (h z)
+      Homotopy.trans _ _ _ p₁ p₂
+    let H : f ∘∘ g ~ id := by
+      apply Homotopy.trans _ (f ∘∘ h) _
+      apply Homotopy.homm_comp
+      apply γ
+      apply h₂
+    ⟪g, ⟪H, h₁⟫⟫
+  end
 end Arrow
 
-theorem id_is_contractible {α : U} : Arrow.is_contractible (@Arrow.id α) :=
-  Λ y => Sigma.mk ⟨Sigma.mk ⟨y, Arrow.id y =∘ y⟩, Λ fib' => _⟩
-
--- def Arrow.qinv {α : U} {β : U} (f : α →∘ β) :=
---   Pi (Arrow β α) (fun g => 
+-- theorem id_is_contractible {α : U} : Arrow.is_contractible (@Arrow.id α) :=
+--   Λ y => ⟪⟪y, Arrow.id y =∘ y⟫, Λ fib' => _⟫
 
 def U.equiv (α : U) (β : U) : U :=
   Σ∘ f : α →∘ β, Arrow.is_contractible f
 
 infix:20 " ≃∘ " => U.equiv
 
-def Id.idtoeqv {α β : U} (p : α =∘ β) : (α ≃∘ β) :=
-  -- let idObj {γ : U} : γ →∘ γ := Λ z => z
-  elim (P := fun α β _ => α ≃∘ β) (λ γ => Sigma.mk ⟨@Arrow.id γ, id_is_contractible⟩) α β p
+-- def Id.idtoeqv {α β : U} (p : α =∘ β) : (α ≃∘ β) :=
+--   -- let idObj {γ : U} : γ →∘ γ := Λ z => z
+--   elim (P := fun α β _ => α ≃∘ β) (λ γ => Sigma.mk ⟨@Arrow.id γ, id_is_contractible⟩) α β p
 
 axiom U.univalence {α β : U} : (α ≃∘ β) ≃∘ (α =∘ β)
 
