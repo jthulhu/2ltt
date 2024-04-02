@@ -139,6 +139,28 @@ namespace Plus
     | ⟨.inr b⟩ => r b
 end Plus
 
+-- Product
+
+def Times (α : U) (β : U) : U :=
+  U.fromType (α × β)
+
+infixr:35 " ×∘ " => Times
+
+namespace Times
+  def mk {α β : U} (a : α) (b : β) : α ×∘ β :=
+    El.mk (a, b)
+
+  private abbrev ofUnderlying {α β : U} (x : α × β) : α ×∘ β :=
+    mk x.1 x.2
+
+  def elim {α β : U} {motive : α ×∘ β → U} (h : (a : α) → (b : β) → motive (mk a b)) (x : α ×∘ β)
+           : motive x :=
+     x.intoU.rec (motive := fun x => motive <| ofUnderlying x) h
+end Times
+
+-- inductive∘ A (α₁ : U) ... (αₙ : U) : U where
+--   | c₁ (_ : β₁) ... (_ : βₘ) : A
+
 -- Unit
 
 def One : U :=
@@ -192,7 +214,7 @@ private inductive InnerId.{i} {α : Type i} : α → α → Type i where
   | refl (x : α) : InnerId x x
 
 namespace InnerId
-  def elim.{i} {α : Type i} {P : (x : α) → (y : α) → InnerId x y → Type i}
+  def elim.{u₁, u₂} {α : Type u₁} {P : (x : α) → (y : α) → InnerId x y → Type u₂}
     (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : InnerId x y)
     : (P x y p) :=
     match p with
@@ -234,8 +256,7 @@ namespace Id
   infix:45 " ⬝ " => concat
 
   def elim {α : U} {P : (x : α) → (y : α) → x =∘ y → U}
-    (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : x =∘ y)
-    : P x y p := by
+           (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : x =∘ y) : P x y p := by
     apply El.mk
     apply InnerId.elim (P := fun a b q =>  (P (El.mk a) (El.mk b) (El.mk q)).intoU.intoType)
     intro x
