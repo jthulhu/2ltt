@@ -32,6 +32,7 @@ open Lean.Meta (
   kabstract
   matchHelper?
   mkFreshLevelMVar
+  mkFreshExprMVar
   postprocessAppMVars
   throwTacticEx
   whnfD
@@ -61,6 +62,24 @@ set_option autoImplicit false
 
 namespace Hott.Tactic
 
+/-- If given `lift.{u} α`, returns `(u, α)` -/
+def _root_.Lean.Expr.lift? (e : Expr) : MetaM (Option (Level × Expr)) := do
+  let type ← Lean.Meta.mkFreshExprMVar (← Lean.Meta.mkConstWithFreshMVarLevels ``Hott.liftedU)
+  let u ← Lean.Meta.mkFreshLevelMVar
+  let lifted := Expr.app (.const ``Hott.lift [u]) type
+  if ← isDefEq e lifted then
+    return some (u, type)
+  else
+    return none
+
+
+/--
+Lift `α` into `^α`.
+-/
+@[inline]
+def _root_.Lean.Expr.liftWith (e : Expr) (u : Level) : Expr :=
+  .app (.const ``Hott.lift [u]) e
+
 /--
 If `e` is a lifted type `^α`, returns `α`.
 -/
@@ -73,37 +92,35 @@ def _root_.Lean.Expr.objType (e : Expr) : MetaM Expr := do
   let some t := e.objType? | throwError "{indentExpr e} is not an object-level type"
   return t
 
+    
 @[inline]
-def inferObjType (e : Expr) : MetaM Expr := do
+def inferObjType (e : Expr) : MetaM (Level × Expr) := do
   let t ← inferType e
-  let ot ← t.objType
-  return ot
-
-/-- If given `lift.{u} α`, returns `(u, α)` -/
-def _root_.Lean.Expr.lift? (e : Expr) : MetaM (Option (Level × Expr)) := do
-  Lean.Meta.withNewMCtxDepth do
-    let type ← Lean.Meta.mkFreshExprMVar none
-    let u ← Lean.Meta.mkFreshLevelMVar
-    let lifted := Expr.app (.const ``Hott.lift [u]) type
-    if ← isDefEq e lifted then
-      return some (u, type)
-    else
-      return none
-      
-#eval (Expr.const ``Hott.liftedU [Level.zero]).lift?
+  match ← t.lift? with
+  | some x => return x
+  | none => throwError "expression{indentExpr e}\nhas type{indentExpr t}\nwhich is not an object-level type"
 
 @[inline]
-def _root_.Lean.Expr.id? (e : Expr) : Option (Expr × Expr × Expr) :=
-  e.app3? ``Id
+def _root_.Lean.Expr.id? (e : Expr) : MetaM (Option (Level × Expr × Expr × Expr)) := do
+  let u ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar (Expr.const ``liftedU [u])
+  let x ← mkFreshExprMVar (α.liftWith u)
+  let y ← mkFreshExprMVar (α.liftWith u)
+  let pattern := mkAppN (.const ``Hott.Id [u]) #[α, x, y]
+  if ← isDefEq e pattern then
+    return some (u, α, x, y)
+  else
+    return none
 
 def getObjLevel (e : Expr) : MetaM Level := do
   let t ← inferType e
-  Lean.logInfo s!"getObjLevel of {e} : {t}"
-  match ← t.lift? with
-  | some (u, _) =>
-    Lean.logInfo "gotcha!"
+  let u ← mkFreshLevelMVar
+  let pattern := .const ``liftedU [u]
+  if ← isDefEq t pattern then
     return u
-  | none => throwError "expression{indentExpr e}\nhas type{indentExpr t}\nwhich is not an object-level type"
+  else
+    throwError "expression{indentExpr e}\nhas type{indentExpr t}\nwhich is not an object-level type"
+    
 
 /--
 Lift `α` into `^α`.
@@ -113,26 +130,25 @@ def _root_.Lean.Expr.lift (e : Expr) : MetaM Expr := do
   let u ← getObjLevel e
   return .app (.const ``Hott.lift [u]) e
 
+universe u in
+example : lift.{u+1} U.{u} = liftedU.{u} := by rfl
 
 ---  Object-level rewrite: rewriteₒ
 def replaceLocalDeclObjCore (mvarId : MVarId) (fvarId : FVarId) (typeNew : Expr)
                             (eqProof : Expr) : MetaM AssertAfterResult :=
-  mvarId.withContext do
-    let localDecl ← fvarId.getDecl
-    let typeNewPr ← mkIdMp eqProof (mkFVar fvarId)
-    let (_, localDecl') ← findMaxFVar typeNew |>.run localDecl
-    let result ← mvarId.assertAfter localDecl'.fvarId localDecl.userName typeNew typeNewPr
-    (do let mvarIdNew ← result.mvarId.clear fvarId
-        pure { result with mvarId := mvarIdNew })
-    <|> pure result
+  -- mvarId.withContext do
+  --   let localDecl ← fvarId.getDecl
+  --   let typeNewPr ← mkIdMp eqProof (mkFVar fvarId)
+  --   let (_, localDecl') ← findMaxFVar typeNew |>.run localDecl
+  --   let result ← mvarId.assertAfter localDecl'.fvarId localDecl.userName typeNew typeNewPr
+  --   (do let mvarIdNew ← result.mvarId.clear fvarId
+  --       pure { result with mvarId := mvarIdNew })
+  --   <|> pure result
+  sorry
 
 def replaceLocalDeclObj (mvarId : MVarId) (fvarId : FVarId) (typeNew : Expr) (eqProof : Expr)
                         : MetaM AssertAfterResult :=
   replaceLocalDeclObjCore mvarId fvarId typeNew eqProof
-
-/-- Matches `e` with `lhs =ₒ rhs : ^α` and returns `(α, lhs, rhs)` -/
-def matchId? (e : Expr) : MetaM (Option (Expr × Expr × Expr)) :=
-  matchHelper? e fun e => return e.app3? ``Id
 
 /-- Given `h : ^(a =ₒ b)`, returns a proof of `b =ₒ a`. -/
 def mkIdSymm (h : Expr) : MetaM Expr := do
@@ -140,36 +156,33 @@ def mkIdSymm (h : Expr) : MetaM Expr := do
     return h
   else
     let hType ← whnfD (← inferType h)
-    match hType.id? with
-      | some (α, a, b) =>
-        let u ← getObjLevel α
+    match ← hType.id? with
+      | some (u, α, a, b) =>
         return mkApp4 (mkConst ``Id.symm [u]) α a b h
       | none =>
         throwError "AppBuilder for '{``Id.symm}, object equality proof expected{indentExpr h}\nhas type{indentExpr hType}"
 
-def mkId (α a b : Expr) : MetaM Expr := do
-  let u ← getObjLevel α
+def mkId (u : Level) (α a b : Expr) : MetaM Expr := do
   return mkApp3 (mkConst ``Id [u]) α a b
 
 /-- Returns a proof of `a =ₒ a` if `a` is an object-level term. -/
 def mkIdRefl (a : Expr) : MetaM Expr := do
-  let aObjType ← inferObjType a
-  let u ← getObjLevel aObjType
+  let (u, aObjType) ← inferObjType a
   return mkApp2 (mkConst ``Id.refl [u]) aObjType a
 
 def mkIdSubst (motive h idh : Expr) : MetaM Expr := do
-  Lean.logInfo m!"motive = {motive}\nh = {h}\nidh = {idh}\nidh ≡ {← whnfD idh}"
   if (← whnfD idh).isAppOf ``Id.refl then
     return h
-  let idhType ← whnfD (← inferType idh)
-  Lean.logInfo m!"idhType = {idhType}"
-  match (← idhType.objType).id? with
-  | none => throwError "AppBuilder for '{``Id.subst}, object equality proof expected{indentExpr idh}\nhas type{indentExpr idhType}"
-  | some (α, lhs, rhs) =>
-    let u₁ ← getLevel α
+  
+  let (_, idhObjType) ← inferObjType idh
+  match ← idhObjType.id? with
+  | none => throwError "AppBuilder for '{``Id.subst}, object equality proof expected{indentExpr idh}\nhas type{indentExpr idhObjType}"
+  | some (u₁, α, lhs, rhs) =>
     let motiveType ← whnfD (← inferType motive)
     match motiveType with
-    | .forallE _ _ (.sort u₂) _ =>
+    | .forallE _ _ motiveTargetType _ =>
+      let some (u₂, _) ← motiveTargetType.lift?
+        | throwError "Motive target type{indentExpr motiveTargetType}\nis not an object-level type"
       return mkAppN (mkConst ``Id.subst [u₁, u₂]) #[α, motive, lhs, rhs, idh, h]
     | _ => throwError "AppBuilder for '{``Id.subst}, invalid motive{indentExpr motive}"
 
@@ -181,16 +194,18 @@ def rewriteObj (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
     let heqObjType ← heqType.objType
     let (newMVars, binderInfos, heqType) ← forallMetaTelescopeReducing heqType
     let heq := mkAppN heq newMVars
-    match ← matchId? heqObjType with
+    match ← heqObjType.id? with
     | none => throwTacticEx `rewriteₒ mvarId m!"object equality expected {indentExpr heqType}"
-    | some (α, lhs, rhs) => do
+    | some (u, α, lhs, rhs) => do
       let (heq, heqType, lhs, rhs) ← do
         if symm then
           let heq ← mkIdSymm heq
-          let heqType ← mkId α rhs lhs
+          let heqType ← mkId u α rhs lhs
           pure (heq, heqType, rhs, lhs)
         else
           pure (heq, heqType, lhs, rhs)
+      let lhs ← instantiateMVars lhs
+      let rhs ← instantiateMVars rhs
       if lhs.getAppFn.isMVar then
         throwTacticEx `rewriteₒ mvarId m!"pattern is a metavariable{indentExpr lhs}\nfrom equation{indentExpr heqType}"
       let e ← instantiateMVars e
@@ -199,22 +214,18 @@ def rewriteObj (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
         throwTacticEx `rewriteₒ mvarId m!"did not find instance of the pattern in the target expresion{indentExpr lhs}"
       let eNew := eAbst.instantiate1 rhs
       let eNew ← instantiateMVars eNew
-      Lean.logInfo "bonjour"
-      let some e_obj := e.objType?
+      let some (e_level, e_obj) ← e.lift?
         | throwTacticEx `rewriteₒ mvarId m!"the goal is not an object-level type{indentExpr e}"
       let some e_abst_obj := eAbst.objType?
         | throwTacticEx `rewriteₒ mvarId m!"the inferred context is not an object-level type"
-      let e_objeq_eabst ← do
-        let level ← getObjLevel e_obj
-        mkId (.const ``U [level]) e_obj e_abst_obj
-      let motive := Lean.mkLambda `_a BinderInfo.default (← α.lift) e_objeq_eabst
+      let e_objeq_eabst ← mkId (.succ e_level) (.const ``U [e_level]) e_obj e_abst_obj
+      let liftedα ← α.lift
+      let motive := Expr.lam `_a liftedα e_objeq_eabst BinderInfo.default
+      Lean.Meta.check motive
       unless ← isTypeCorrect motive do
         throwTacticEx `rewriteₒ mvarId "motive is not type correct..."
-      Lean.logInfo "CHECKPOINT 2"
       let eqRefl ← mkIdRefl e_obj
-      Lean.logInfo "CHECKPOINT 2.5"
       let eqPrf ← mkIdSubst motive eqRefl heq
-      Lean.logInfo "CHECKPOINT 3"
       postprocessAppMVars `rewriteₒ mvarId newMVars binderInfos
       let newMVarIds ← newMVars.map Expr.mvarId! |>.filterM (not <$> ·.isAssigned)
       let otherMVarIds ← getMVarsNoDelayed eqPrf
@@ -222,18 +233,20 @@ def rewriteObj (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
       let newMVarIds := newMVarIds ++ otherMVarIds
       pure { eNew := eNew, eqProof := eqPrf, mvarIds := newMVarIds.toList }
 
+def mkExpectedObjTypeHint (e : Expr) (expectedObjType : Expr) : MetaM Expr := do
+  let u ← getObjLevel expectedObjType
+  return mkAppN (.const ``Arrow.id [u]) #[expectedObjType, e]
+
 def replaceTargetId (mvarId : MVarId) (targetNew : Expr) (eqProof : Expr) : MetaM MVarId :=
   mvarId.withContext do
     mvarId.checkNotAssigned `replaceTarget
     let tag ← mvarId.getTag
     let mvarNew ← Lean.Meta.mkFreshExprSyntheticOpaqueMVar targetNew tag
     let target ← mvarId.getType
-    let u ← getLevel target
-    let targetType ← inferType target
-    let some targetObjType := targetType.objType?
-      | throwTacticEx `rewriteₒ mvarId m!"Expression{indentExpr target}does not have an object-level type{indentExpr targetType}"
-    let eq ← mkId targetObjType target targetNew
-    let newProof ← Lean.Meta.mkExpectedTypeHint eqProof eq
+    let some (u, targetObjType) ← target.lift?
+      | throwTacticEx `rewriteₒ mvarId m!"target {indentExpr target}\nis not an object-level type"
+    let eq ← mkId u targetObjType target targetNew
+    let newProof ← mkExpectedObjTypeHint eqProof eq
     let val := mkAppN (Lean.mkConst ``Id.mpr [u]) #[target, targetNew, newProof, mvarNew]
     mvarId.assign val
     return mvarNew.mvarId!
@@ -279,9 +292,12 @@ def checkImpl : Tactic := fun stx => do
     throwTacticEx `checkₒ mvarId "This term is not an object-level term"
   | some t =>
     Lean.logInfo s!"Term has object-level type {t}."
-
-example {α β : U} (h : β =ₒ α) (x : α) : β := by
-  -- checkₒ h
+    
+-- set_option pp.universes true in
+-- set_option trace.Meta.isDefEq true in
+example {α β : U.{0}} (h : β =ₒ α) (x : α) : β := by
   rewriteₒ [h]
+  assumption
+  -- exact x
 
 end Hott.Tactic
