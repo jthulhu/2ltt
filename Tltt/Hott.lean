@@ -1,4 +1,5 @@
 import Tltt.ObjLang
+import Tltt.Tactics
 
 noncomputable section
 
@@ -18,81 +19,54 @@ def Arrow.id_is_id {α : U} {x : α} : (id $ₒ x) = x := by
   rfl
 
 namespace Id
-  def subst {α : U} {P : α → U} {a b : α} (h₁ : a =ₒ b) : P a → P b := by
-    apply Pi.app
-    apply Id.elim (P := fun x y _ => P x →ₒ P y)
-    intro x
-    apply Pi.lam
-    exact id
-    exact h₁
-
-  def mp {α β : U} (h : α =ₒ β) (a : α) : β :=
-    subst (P := fun x => x) h a
-
-  def mpr {α β : U} (h : α =ₒ β) (b : β) : α :=
-    mp (symm α β h) b
 
   section
     variable {α : U}
-    variable (x y z w : α)
-    variable (p : x =ₒ y) (q : y =ₒ z) (r : z =ₒ w)
     
     @[simp]
-    theorem refl_refl_is_refl : (refl x ⬝ refl x) = refl x := by
+    theorem refl_refl_is_refl (x : α) : (refl x ⬝ refl x) = refl x := by
       rfl
 
-    theorem concat_refl : p ⬝ refl y =ₒ p := by
-      apply elim (P := fun x y p => p ⬝ refl y =ₒ p)
-      intro x
-      simp
-      apply refl
+    theorem concat_refl (x y : α) (p : x =ₒ y) : p ⬝ refl y =ₒ p := by
+      path_inductionₒ p
+      rflₒ
 
-    theorem refl_concat : refl x ⬝ p =ₒ p := by
-      apply elim (P := fun x y p => refl x ⬝ p =ₒ p)
-      intro x
-      simp
-      apply refl
+    theorem refl_concat (x y : α) (p : x =ₒ y) : refl x ⬝ p =ₒ p := by
+      path_inductionₒ p
+      rflₒ
 
     @[simp]
     theorem inv_refl_concat : ((refl x)⁻¹ ⬝ refl x) = refl x := by
       rfl
 
-    theorem inv_concat : p⁻¹ ⬝ p =ₒ refl y := by
-      apply elim (P := fun x y p => p⁻¹ ⬝ p =ₒ refl y)
-      intro x
-      simp
-      apply refl
+    theorem inv_concat (x y : α) (p : x =ₒ y) : p⁻¹ ⬝ p =ₒ refl y := by
+      path_inductionₒ p
+      rflₒ
 
     @[simp]
-    theorem concat_refl_inv : (refl x ⬝ (refl x)⁻¹) = refl x := by
+    theorem concat_refl_inv (x : α) : (refl x ⬝ (refl x)⁻¹) = refl x := by
       rfl
 
-    theorem concat_inv : p ⬝ p⁻¹ =ₒ refl x := by
-      apply elim (P := fun x y p => p ⬝ p⁻¹ =ₒ refl x)
-      intro x
-      simp
-      apply refl
+    theorem concat_inv (x y : α) (p : x =ₒ y) : p ⬝ p⁻¹ =ₒ refl x := by
+      path_inductionₒ p
+      rflₒ
 
     @[simp]
-    theorem inv_refl : (refl x)⁻¹ = refl x := by
+    theorem inv_refl (x : α) : (refl x)⁻¹ = refl x := by
       rfl
 
     theorem inv_inv : (p⁻¹)⁻¹ =ₒ p := by
-      apply elim (P := fun x y p => (p⁻¹)⁻¹ =ₒ p)
-      intro x
-      simp
-      apply refl
+      path_inductionₒ p
+      rflₒ
 
-    theorem concat_assoc : p ⬝ (q ⬝ r) =ₒ (p ⬝ q) ⬝ r :=
-      let P := fun x y p =>
-        Πₒ z : α, Πₒ w : α, Πₒ q : y =ₒ z, Πₒ r : z =ₒ w, p ⬝ (q ⬝ r) =ₒ (p ⬝ q) ⬝ r
-      let h (x : α) : P x x (refl x) := Λ z => Λ w => Λ q => Λ r => by
-        have h₁ : q ⬝ r =ₒ refl x ⬝ (q ⬝ r) := refl_concat _ _ _ |> symm _ _
-        apply subst (P := fun qr => qr =ₒ (refl x ⬝ q) ⬝ r) h₁
-        have h₂ : q =ₒ refl x ⬝ q := refl_concat _ _ _ |> symm _ _
-        apply subst (P := fun q' => q ⬝ r =ₒ q' ⬝ r) h₂
-        apply refl
-      elim (P := P) h x y p z w q r
+    theorem concat_assoc (x y z w : α) (p : x =ₒ y) (q : y =ₒ z) (r : z =ₒ w)
+                         : p ⬝ (q ⬝ r) =ₒ (p ⬝ q) ⬝ r := by
+      path_inductionₒ p
+      introₒ q
+      path_inductionₒ q
+      introₒ r
+      path_inductionₒ r
+      rflₒ
   end
   
   section
@@ -113,25 +87,23 @@ namespace Id
     theorem ap_concat : ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q :=
       let P := fun x y p => Πₒ z : α, Πₒ q : y =ₒ z, ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q
       let h x := Λ z => Λ q => by
-        have h₁ : q =ₒ refl x ⬝ q := refl_concat _ _ _ |> symm _ _
-        apply subst (P := fun q' => ap f q' =ₒ _) h₁
+        rewriteₒ [refl_concat _ _ _]
         simp
-        apply symm
-        apply refl_concat
+        rwₒ [refl_concat _ _ _]
       elim (P := P) h _ _ _ z q
 
     theorem ap_inv : ap f p⁻¹ =ₒ (ap f p)⁻¹ :=
       let P := fun x y p => ap f p⁻¹ =ₒ (ap f p)⁻¹
       let h x : ap f (refl x)⁻¹ =ₒ (ap f (refl x))⁻¹ := by
         simp
-        apply refl
+        rflₒ
       elim (P := P) h _ _ _
 
     theorem ap_id : ap Arrow.id p =ₒ p := by
       apply elim (P := fun x y p => ap Arrow.id p =ₒ p)
       intro x
       simp
-      apply refl
+      rflₒ
   end
 end Id
 
@@ -165,7 +137,7 @@ namespace Homotopy
     @[match_pattern]
     theorem refl : f ~ f := by
       introₒ x
-      apply Id.refl (f x)
+      rflₒ
 
     theorem symm : g ~ f := by
       introₒ x
@@ -190,10 +162,7 @@ namespace Homotopy
       let P x y p := H x ⬝ Id.ap g p =ₒ Id.ap f p ⬝ H y
       let h x := by
         simp
-        apply Id.subst
-        apply Id.symm
-        apply Id.refl_concat
-        apply Id.concat_refl
+        rwₒ [Id.refl_concat _ _ _, Id.concat_refl _ _ _]
       Id.elim (P := P) h x y p
   end Lemma_2_4_3
 
@@ -203,20 +172,33 @@ namespace Homotopy
     variable (H : f ~ Arrow.id)
     variable (x : α)
 
-    theorem homm_ap_commute : H (f x) =ₒ Id.ap f (H x) :=
-      let h₁ : _ =ₒ _ := homotopy_transport_commute f Arrow.id H (f x) x (H x)      
-      sorry
+    theorem homm_ap_commute : H (f x) =ₒ Id.ap f (H x) := by
+      have h₁ := homotopy_transport_commute f Arrow.id H (f x) x (H x)
+      rewriteₒ [Id.ap_id _ _ _] at h₁
+      have h₂ := Id.ap (· ⬝ (H x)⁻¹) h₁
+      simp at h₂
+      rewriteₒ [
+        ← Id.concat_assoc _ _ _ _ _ _ _,
+        ← Id.concat_assoc _ _ _ _ _ _ _,
+        Id.concat_inv _ _ _,
+        Id.concat_refl _ _ _,
+        Id.concat_refl _ _ _,
+      ] at h₂
+      exact h₂
   end Corollary_2_4_4
 
   section
     variable {α β γ ρ : U}
     variable (f g : α →ₒ β) (h : ρ →ₒ α) (h' : β →ₒ γ)
     variable (H : f ~ g)
-    theorem comp_homm : f ∘ₒ h ~ g ∘ₒ h :=
-      Λ w => H (h w)
+    theorem comp_homm : f ∘ₒ h ~ g ∘ₒ h := by
+      introₒ w
+      exact H (h w)
 
-    theorem homm_comp : h' ∘ₒ f ~ h' ∘ₒ g :=
-      Λ x => Id.subst (P := fun c => h' ∘ₒ f $ₒ x =ₒ h' $ₒ c) (H x) (Id.refl _)
+    theorem homm_comp : h' ∘ₒ f ~ h' ∘ₒ g := by
+      introₒ x
+      simp
+      rwₒ [H x]
   end
 end Homotopy
 
@@ -272,7 +254,7 @@ namespace Arrow
     ⟪g, η, ε', τ⟫
 
   theorem qinv_to_biinv (q : qinv f) : biinv f :=
-    let ⟪g, ⟪h₁, h₂⟫⟫ := q
+    let ⟪g, h₁, h₂⟫ := q
     let left : linv f := ⟪g, h₂⟫
     let right : rinv f := ⟪g, h₁⟫
     ⟪left, right⟫
@@ -281,9 +263,10 @@ namespace Arrow
     let ⟪⟪g, h₁⟫, ⟪h, h₂⟫⟫ := b
     let γ : g ~ h :=
       let p₁ : g ~ g ∘ₒ f ∘ₒ h := Λ z => by
-        apply Id.subst (P := fun c => g z =ₒ g c) (h₂ z)⁻¹
         simp
-        apply Id.refl
+        rewriteₒ [h₂ z]
+        simp
+        rflₒ
       let p₂ : g ∘ₒ f ∘ₒ h ~ h := Λ z => by
         apply h₁ (h z)
       Homotopy.trans _ _ _ p₁ p₂
@@ -336,40 +319,6 @@ infix:20 " ≃ₒ " => U.equiv
 --   elim (P := fun α β _ => α ≃∘ β) (λ γ => Sigma.mk ⟨@Arrow.id γ, id_is_contractible⟩) α β p
 
 axiom U.univalence {α β : U} : (α ≃ₒ β) ≃ₒ (α =ₒ β)
-
--- namespace Tactics
---   open Lean.Parser.Tactic
---   open Lean.Elab Tactic
---   open Lean.Meta
-  
---   syntax (name := objRewriteSeq) "rewrite∘" rwRuleSeq (location)? : tactic
-
---   def objRewrite (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
---                  (occs : Occurrences := Occurrences.all) : MetaM RewriteResult :=
---     mvarId.withContext do
---       sorry
-
---   def objRewriteTarget (stx : Syntax) (symm : Bool) : TacticM Unit := do
---     Term.withSynthesize <| withMainContext do
---       let e ← elabTerm stx none true
---       let r ← objRewrite (← getMainGoal) (← getMainTarget) e symm
-
---   def objRewriteLocalDecl (stx : Syntax) (symm : Bool) (fvarId : FVarId) : TacticM Unit := do
---     sorry
-
---   def withObjRWRulesSeq (token : Syntax) (rwObjRulesSeqStx : Syntax)
---     (x : (symm : Bool) → (term : Syntax) → TacticM Unit) : TacticM Unit := do
---     sorry
-
---   @[tactic objRewriteSeq]
---   def evalObjRewriteSeq : Tactic := fun stx => do
---     let loc := expandOptLocation stx[2]
---     withObjRWRulesSeq stx[0] stx[1] fun symm term => do
---       withLocation loc
---         (objRewriteLocalDecl term symm ·)
---         (objRewriteTarget term symm)
---         (throwTacticEx `rewriteObj · "did not find instance of the pattern in the current goal")
--- end Tactics
 
 end Hott
 end
