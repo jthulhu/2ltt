@@ -315,13 +315,14 @@ namespace PathInduction
         | throwTacticEx `path_inductionₒ mvarId m!"variable expected to induct on, got{indentExpr y}"
       -- we revert here, and intro later, because there might be other local hypothesis which
       -- depend on `x_var`, `y_var` and `path`, which need to be reverted but not introed.
-      let (_, newGoal) ← mvarId.revert #[x_var, y_var, path] (preserveOrder := true)
-      newGoal.withContext do
-        let (motive, goal_level, newGoal) ← forallBoundedTelescope (← newGoal.getType) (some 3) fun args e => do
+      let (_, forall_form) ← mvarId.revert #[x_var, y_var, path] (preserveOrder := true)
+      forall_form.withContext do
+        let (motive, goal_level, newGoal) ← forallBoundedTelescope (← forall_form.getType) (some 3)
+                                                                   fun args e => do
           -- turn goals of the form (x : ^α) → ^β into ^((x : α) →ₒ β)
           let (e, goal) ← forallTelescopeReducing e fun args e => do
             let mut result := e
-            let mut goal := newGoal
+            let mut goal := forall_form
             for arg in args.reverse do
               -- result =?= ^β
               -- arg : ^α
@@ -336,17 +337,20 @@ namespace PathInduction
               goal := goal'.mvarId!
             pure (result, goal)
           let some (goal_level, motiveBody) ← e.lift?
-            | throwTacticEx `path_inductionₒ newGoal m!"the goal{indentExpr e}\nis not an object-level type"
+            | throwTacticEx `path_inductionₒ forall_form m!"the goal{indentExpr e}\nis not an object-level type"
           return (← mkLambdaFVars args motiveBody, goal_level, goal)
-        let (goal, switcharoo) ← withLocalDecl name .default (← α.lift) fun newx => do
+        let something ← withLocalDecl name .default (← α.lift) fun newx => do
           let motiveBody ←
-            whnfI (mkAppN motive #[newx, newx, mkApp2 (.const ``Id.refl [u]) α newx])
+            whnfI <| mkAppN motive #[newx, newx, mkApp2 (.const ``Id.refl [u]) α newx]
           let liftedMotiveBody := motiveBody.liftWith goal_level
-          let body ← mkFreshExprSyntheticOpaqueMVar liftedMotiveBody
-          return (body, ← mkLambdaFVars #[newx] body)
-        let elimProof := mkAppN (.const ``Id.elim [u, goal_level]) #[α, motive, switcharoo]
-        replaceMainGoal [goal.mvarId!]
+          mkForallFVars #[newx] liftedMotiveBody
+        let refl_case_goal ← mkFreshExprSyntheticOpaqueMVar something
+        let (_, refl_case_goal_with_x) ← refl_case_goal.mvarId!.intro name
+        let elimProof := mkAppN (.const ``Id.elim [u, goal_level]) #[α, motive, refl_case_goal]
+        replaceMainGoal [refl_case_goal_with_x]
         newGoal.assign elimProof
+    Lean.logInfo m!"{Expr.mvar <| ← getMainGoal}"
+    Lean.logInfo m!"{Expr.mvar mvarId}"
 
   @[tactic path_induction_obj]
   def path_induction_obj_impl : Tactic
