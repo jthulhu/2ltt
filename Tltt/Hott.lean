@@ -59,7 +59,7 @@ namespace Id
       path_inductionₒ p
       rflₒ
 
-    theorem concat_assoc (x y z w : α) (p : x =ₒ y) (q : y =ₒ z) (r : z =ₒ w)
+    def concat_assoc (x y z w : α) (p : x =ₒ y) (q : y =ₒ z) (r : z =ₒ w)
                          : p ⬝ (q ⬝ r) =ₒ (p ⬝ q) ⬝ r := by
       path_inductionₒ p
       introₒ q
@@ -71,38 +71,31 @@ namespace Id
   
   section
     variable {α β γ : U}
-    variable (f : α → β) (g : β → γ)
-    variable (x y z : α)
-    variable (p : x =ₒ y) (q : y =ₒ z)
+    -- variable (f : α → β) (g : β → γ)
+    -- variable (x y z : α)
+    -- variable (p : x =ₒ y) (q : y =ₒ z)
 
     -- Lemma 2.2.1
-    def ap {x y : α} (p : x =ₒ y) : f x =ₒ f y :=
-      elim (P := fun x y _ => f x =ₒ f y) (fun x => refl (f x)) x y p
+    def ap (f : α → β) {x y : α} (p : x =ₒ y) : f x =ₒ f y := by
+      path_inductionₒ p
+      rflₒ
 
     @[simp]
     theorem ap_refl : ap f (refl x) = refl (f x) := by
       rfl
 
     -- Lemma 2.2.2
-    theorem ap_concat : ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q :=
-      let P := fun x y p => Πₒ z : α, Πₒ q : y =ₒ z, ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q
-      let h x := Λ z => Λ q => by
-        rewriteₒ [refl_concat _ _ _]
-        simp
-        rwₒ [refl_concat _ _ _]
-      elim (P := P) h _ _ _ z q
+    theorem ap_concat : ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q := by
+      path_inductionₒ p
+      introₒ q
+      rwₒ [refl_concat _ _ _, refl_concat _ _ _]
 
-    theorem ap_inv : ap f p⁻¹ =ₒ (ap f p)⁻¹ :=
-      let P := fun x y p => ap f p⁻¹ =ₒ (ap f p)⁻¹
-      let h x : ap f (refl x)⁻¹ =ₒ (ap f (refl x))⁻¹ := by
-        simp
-        rflₒ
-      elim (P := P) h _ _ _
+    theorem ap_inv (f : α → β) (x y : α) (p : x =ₒ y) : ap f p⁻¹ =ₒ (ap f p)⁻¹ := by
+      path_inductionₒ p
+      rflₒ
 
-    theorem ap_id : ap Arrow.id p =ₒ p := by
-      apply elim (P := fun x y p => ap Arrow.id p =ₒ p)
-      intro x
-      simp
+    theorem ap_id (x y : α) (p : x =ₒ y) : ap Arrow.id p =ₒ p := by
+      path_inductionₒ p
       rflₒ
   end
 end Id
@@ -158,12 +151,9 @@ namespace Homotopy
     variable (x y : α)
     variable (p : x =ₒ y)
 
-    theorem homotopy_transport_commute : H x ⬝ Id.ap g p =ₒ Id.ap f p ⬝ H y :=
-      let P x y p := H x ⬝ Id.ap g p =ₒ Id.ap f p ⬝ H y
-      let h x := by
-        simp
-        rwₒ [Id.refl_concat _ _ _, Id.concat_refl _ _ _]
-      Id.elim (P := P) h x y p
+    theorem homotopy_transport_commute : H x ⬝ Id.ap g p =ₒ Id.ap f p ⬝ H y := by
+      path_inductionₒ p
+      rwₒ [Id.refl_concat _ _ _, Id.concat_refl _ _ _]
   end Lemma_2_4_3
 
   section Corollary_2_4_4
