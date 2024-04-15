@@ -129,10 +129,10 @@ namespace Pi
 end Pi
 
 -- Arrow type
-def Arrow (α : U) (β : U) : U :=
+def Funₒ (α : U) (β : U) : U :=
   Pi α (fun _ => β)
 
-infixr:20 " →ₒ " => Arrow
+infixr:20 " →ₒ " => Funₒ
 
 instance {α β : U} : CoeFun (α →ₒ β) (fun _ => α → β) where
   coe := Pi.app

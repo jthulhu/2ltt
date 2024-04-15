@@ -13,11 +13,11 @@ namespace Hott
 open Hott
 
 @[reducible]
-def Arrow.id {α : U} : α →ₒ α :=
+def Funₒ.id {α : U} : α →ₒ α :=
   Λ x => x
 
 @[simp]
-def Arrow.id_is_id {α : U} {x : α} : (id $ₒ x) = x := by
+def Funₒ.id_is_id {α : U} {x : α} : (id $ₒ x) = x := by
   rfl
 
 namespace Id
@@ -97,7 +97,7 @@ namespace Id
       path_inductionₒ p
       rflₒ
 
-    theorem ap_id (x y : α) (p : x =ₒ y) : ap Arrow.id p =ₒ p := by
+    theorem ap_id (x y : α) (p : x =ₒ y) : ap Funₒ.id p =ₒ p := by
       path_inductionₒ p
       rflₒ
   end
@@ -105,7 +105,7 @@ end Id
 
 -- Composition
 
-namespace Arrow
+namespace Funₒ
   @[reducible]
   def after {α β γ : U} (f : α →ₒ β) (g : β →ₒ γ) : α →ₒ γ :=
     Λ x => g $ₒ f x
@@ -113,9 +113,9 @@ namespace Arrow
   @[reducible]
   def compose {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) : α →ₒ γ :=
     Λ x => f $ₒ g x
-end Arrow
+end Funₒ
 
-infixr:90 " ∘ₒ " => Arrow.compose
+infixr:90 " ∘ₒ " => Funₒ.compose
 
 -- Homotopies
 
@@ -162,11 +162,11 @@ namespace Homotopy
   section Corollary_2_4_4
     variable {α : U}
     variable (f : α →ₒ α)
-    variable (H : f ~ Arrow.id)
+    variable (H : f ~ Funₒ.id)
     variable (x : α)
 
     theorem homm_ap_commute : H (f x) =ₒ Id.ap f (H x) := by
-      have h₁ := homotopy_transport_commute f Arrow.id H (f x) x (H x)
+      have h₁ := homotopy_transport_commute f Funₒ.id H (f x) x (H x)
       rewriteₒ [Id.ap_id _ _ _] at h₁
       have h₂ := Id.ap (· ⬝ (H x)⁻¹) h₁
       simp at h₂
@@ -197,22 +197,22 @@ end Homotopy
 
 -- Equivalences
 
-def Arrow.fiber {α : U} {β : U} (f : α →ₒ β) (y : β) : U :=
+def Funₒ.fiber {α : U} {β : U} (f : α →ₒ β) (y : β) : U :=
   Σₒ x : α, f x =ₒ y
 
 -- Note: if this function is defined in the current namespace rather than in `U`, then the
--- `Arrow.is_contractible` one doesn't compile anymore (assuming the `is_contractible` function
+-- `Funₒ.is_contractible` one doesn't compile anymore (assuming the `is_contractible` function
 -- is still pointing to this one.
 abbrev U.is_contractible (α : U) : U :=
   Σₒ a : α, Πₒ x : α, a =ₒ x
 
-namespace Arrow
+namespace Funₒ
   section
   variable {α β : U}
   variable (f : α →ₒ β)
   
   abbrev is_contractible : U :=
-    Πₒ y : β, Arrow.fiber f y |> U.is_contractible
+    Πₒ y : β, Funₒ.fiber f y |> U.is_contractible
 
   @[simp]
   theorem id_simp (x : α) : id x = x := by
@@ -271,9 +271,7 @@ namespace Arrow
     ⟪g, H, h₁⟫
 
   theorem contr_to_qinv (c : is_contractible f) : qinv f :=
-    let g : β →ₒ α := Λ x =>
-      let ⟪⟪center, _⟫, _⟫ := c x
-      center
+    let g : β →ₒ α := λₒ x => Sigma.pr₁ (Sigma.pr₁ (c x))
     let h₁ : f ∘ₒ g ~ id := by
       introₒ x
       let path := Sigma.pr₂ (Sigma.pr₁ (c x))
@@ -281,13 +279,13 @@ namespace Arrow
       assumption
     let h₂ : g ∘ₒ f ~ id := by
       introₒ x
-      let hello := Sigma.pr₁ (c (f x))
-      -- let center := Sigma.pr₁ (Sigma.pr₁ (c (f x)))
-      let path := Sigma.pr₂ (c (f x)) hello
+      let is_unique := Sigma.pr₂ (c (f x))
+      let f_x_in_fiber_f_x : fiber f (f x) := ⟪x, by rflₒ⟫
+      let path := is_unique f_x_in_fiber_f_x
       let h := Id.ap Sigma.pr₁ path
-      simp at *
-      admit
-    ⟪g, ⟪h₁, h₂⟫⟫
+      simp at h
+      exact h
+    ⟪g, h₁, h₂⟫
 
   theorem qinv_to_contr (q : qinv f) : is_contractible f :=
     let ⟪g, h₁, h₂⟫ := q
@@ -297,7 +295,6 @@ namespace Arrow
       let is_connected := Λ z => sorry
       ⟪⟪x, is_in_fiber⟫, is_connected⟫
   end
-end Arrow
 
 -- theorem id_is_contractible {α : U} : Arrow.is_contractible (@Arrow.id α) :=
 --   Λ y => ⟪⟪y, Arrow.id y =ₒ y⟫, Λ fib' => _⟫
@@ -306,10 +303,12 @@ def U.equiv (α : U) (β : U) : U :=
   Σₒ f : α →ₒ β, Arrow.is_contractible f
 
 infix:20 " ≃ₒ " => U.equiv
+end Funₒ
 
 -- def Id.idtoeqv {α β : U} (p : α =ₒ β) : (α ≃∘ β) :=
 --   -- let idObj {γ : U} : γ →ₒ γ := Λ z => z
 --   elim (P := fun α β _ => α ≃∘ β) (λ γ => Sigma.mk ⟨@Arrow.id γ, id_is_contractible⟩) α β p
+infix:20 " ≃ₒ " => Funₒ.equiv
 
 axiom U.univalence {α β : U} : (α ≃ₒ β) ≃ₒ (α =ₒ β)
 
