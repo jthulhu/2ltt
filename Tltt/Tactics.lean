@@ -185,14 +185,13 @@ def _root_.Lean.MVarId.introsₒ (goal : MVarId) : List Name → MetaM (MVarId �
     let some (u₁, u₂, α, β) ← goal_typeₒ.pi?
       | throwTacticEx `introsₒ goal
                       "could not introduce a variable, goal has type{indentExpr goal_typeₒ}\nwhich is not a universal quantifier"
-    let (lam, goal'', fvars) ← withLocalDecl var_name .default (α.liftWith u₁) fun var => do
-      let goal' ← mkFreshExprMVar (Expr.app β var |>.liftWith u₂)
+    withLocalDecl var_name .default (α.liftWith u₁) fun var => do
+      let goal' ← mkFreshExprSyntheticOpaqueMVar (Expr.app β var |>.liftWith u₂)
       let (goal'', fvars) ← goal'.mvarId!.introsₒ rest
       let lam ← mkLambdaFVars #[var] goal'
-      return (lam, goal'', var.fvarId!::fvars)
-    goal.assign <| mkAppN (.const ``Pi.lam [u₁, u₂]) #[α, β, lam]
-    return (goal'', fvars)
-
+      goal.assign  <| mkAppN (.const ``Pi.lam [u₁, u₂]) #[α, β, lam]
+      return (goal'', var.fvarId!::fvars)
+  
 /-- Returns `a =ₒ b`. -/
 def mkId (u : Level) (α a b : Expr) : MetaM Expr := do
   return mkApp3 (.const ``Id [u]) α a b
@@ -398,10 +397,12 @@ namespace PathInduction
           mkForallFVars #[newx] liftedMotiveBody
         let refl_case_goal ← mkFreshExprSyntheticOpaqueMVar refl_case_motive_type
         let (_, refl_case_goal_with_x) ← refl_case_goal.mvarId!.intro name
-        let elimProof := mkAppN (.const ``Id.elim [u, motive_level]) #[α, motive, refl_case_goal]
-        forall_formₒ.assign elimProof
-        let (refl_case_with_subst_goal, _) ← refl_case_goal_with_x.introsₒ var_names
-        replaceMainGoal [refl_case_with_subst_goal]
+        refl_case_goal_with_x.withContext do
+          let elimProof := mkAppN (.const ``Id.elim [u, motive_level]) #[α, motive, refl_case_goal]
+          forall_formₒ.assign elimProof
+          let (refl_case_with_subst_goal, _) ← refl_case_goal_with_x.introsₒ var_names
+          refl_case_with_subst_goal.withContext do
+            replaceMainGoal [refl_case_with_subst_goal]
 
   @[tactic path_induction_obj]
   def path_induction_obj_impl : Tactic
@@ -418,6 +419,13 @@ macro "rflₒ" : tactic => `(tactic| apply Id.refl)
 
 macro "rwₒ" s:rwRuleSeq l:(location)? : tactic =>
   `(tactic| (rewriteₒ $s $(l)?; try (with_reducible rflₒ)))
+
+syntax "introₒ" notFollowedBy("|") (ppSpace colGt term:max)* : tactic
+macro_rules
+  | `(tactic| introₒ $first $[$pat]*) => `(tactic| apply Pi.lam; intro $first $[$pat]*)
+
+macro "applyₒ" h:term : tactic =>
+  `(tactic| apply Pi.app $h)
 
 example {α β : U} (h : β =ₒ α) (x : α) : β := by
   rewriteₒ [h]
@@ -438,7 +446,6 @@ example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
 example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
   rwₒ [h₁, h₂]
 
-set_option pp.explicit true in
 example (x y : Natₒ) (p : x =ₒ y) : y =ₒ x := by
   path_inductionₒ p
   rflₒ
