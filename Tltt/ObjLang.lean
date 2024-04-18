@@ -320,30 +320,19 @@ end Natₒ
 
 -- Identity type
 
--- private inductive InnerId {α : Type} (x : α) : α → Type where
---   | refl : InnerId x x
+private inductive Id.Inner.{i} {α : Type i} : α → α → Type i where
+  | refl (x : α) : Inner x x
 
-private inductive InnerId.{i} {α : Type i} : α → α → Type i where
-  | refl (x : α) : InnerId x x
+private def Id.Inner.elim.{u₁, u₂} {α : Type u₁} {P : (x : α) → (y : α) → Inner x y → Type u₂}
+                                   (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : Inner x y)
+                                   : (P x y p) :=
+  @Inner.rec α x (P x) (h x) y p
 
-namespace InnerId
-  def elim.{u₁, u₂} {α : Type u₁} {P : (x : α) → (y : α) → InnerId x y → Type u₂}
-    (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : InnerId x y)
-    : (P x y p) :=
-    match p with
-    | .refl _ => h x
-
-  def symm.{i} {α : Type i} (x y : α) (p : InnerId x y) : InnerId y x :=
-    match p with
-    | .refl _ => .refl _
-
-  def trans.{i} {α : Type i} (x y z : α) (p₁ : InnerId x y) (p₂ : InnerId y z) : InnerId x z :=
-    match p₁, p₂ with
-    | .refl _, .refl _ => .refl _
-end InnerId
+private def Id.Inner.trans.{i} {α : Type i} (x y z : α) : Inner x y → Inner y z → Inner x z
+  | refl _, refl _ => refl _
 
 def Id.{i} {α : U.{i}} (x y : α) : U.{i} :=
-  U.fromType.{i} (InnerId x.intoU y.intoU)
+  U.fromType.{i} (Id.Inner x.intoU y.intoU)
 
 infix:50 " =ₒ " => Id
 
@@ -355,12 +344,21 @@ def unexpand_id : Unexpander
 namespace Id
   @[match_pattern]
   def refl {α : U} (x : α) : x =ₒ x :=
-    ⟨InnerId.refl x.intoU⟩
+    ⟨Inner.refl x.intoU⟩
 
-  def symm {α : U} (x y : α) (p : x =ₒ y) : y =ₒ x := by
+  def elim {α : U} {P : (x : α) → (y : α) → x =ₒ y → U} (h : (x : α) → P x x (refl x)) (x : α)
+           (y : α) (p : x =ₒ y) : P x y p := by
     apply El.mk
-    apply InnerId.symm
-    exact p.intoU
+    apply Inner.elim (P := fun a b q => (P (El.mk a) (El.mk b) (El.mk q)).intoU.intoType)
+    intro x
+    apply El.intoU
+    apply h
+
+  def symm {α : U} (x y : α) (p : x =ₒ y) : y =ₒ x :=
+    elim (P := fun x y _ => y =ₒ x) refl x y p
+
+  @[simp]
+  theorem symm_beta {α : U} (a : α) : symm a a (refl a) = refl a := by rfl
 
   def inv {α : U} {x y : α} (p : x =ₒ y): y =ₒ x :=
     symm x y p
@@ -374,26 +372,18 @@ namespace Id
 
   def trans {α : U} (x y z : α) (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z := by
     apply El.mk
-    apply InnerId.trans <;> apply El.intoU <;> assumption
+    apply Inner.trans <;> apply El.intoU <;> assumption
 
   @[match_pattern]
   def concat {α : U} {x y z : α} (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z :=
     trans x y z p₁ p₂
 
-  infixr:45 " ⬝ " => concat
+  infixr:60 " ⬝ " => concat
 
   @[app_unexpander concat]
   def unexpand_concat : Unexpander
     | `($_ $p₁ $p₂) => ``($p₁ ⬝ $p₂)
     | _ => throw ()
-
-  def elim {α : U} {P : (x : α) → (y : α) → x =ₒ y → U}
-           (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : x =ₒ y) : P x y p := by
-    apply El.mk
-    apply InnerId.elim (P := fun a b q =>  (P (El.mk a) (El.mk b) (El.mk q)).intoU.intoType)
-    intro x
-    apply El.intoU
-    apply h
 
   def subst {α : U} {P : α → U} {a b : α} (h : a =ₒ b) : P a → P b := by
     apply Pi.app
