@@ -274,6 +274,18 @@ namespace Funₒ
   abbrev is_contractible : U :=
     Πₒ y : β, Funₒ.fiber f y |> U.is_contractible
 
+  theorem retract_preseve_contractible (α β : U) (h : Retraction.is_retract β α)
+                                       (c : U.is_contractible α) : U.is_contractible β := by
+    let ⟪a₀, Ha⟫ := c
+    simp at Ha
+    let ⟪r, s, p⟫ := h
+    simp at p
+    exhibitₒ r a₀
+    introₒ b
+    have h := Id.ap r (Ha (s b))
+    rewriteₒ [p _] at h
+    exact h
+
   @[simp]
   theorem id_simp (x : α) : id x = x := by
     rfl
@@ -286,6 +298,9 @@ namespace Funₒ
 
   def rinv : U :=
     Σₒ g : β →ₒ α, f ∘ₒ g ~ id
+
+  theorem rinv_is_retraction {α β : U} (f : α →ₒ β) (frinv : rinv f) : Retraction.is_retraction f := by
+    exact frinv
 
   def biinv : U :=
     linv f ×ₒ rinv f
