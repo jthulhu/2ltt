@@ -66,6 +66,8 @@ open Lean (
   mkFreshMVarId
 )
 
+noncomputable section
+
 open Hott
 
 set_option autoImplicit false
@@ -455,3 +457,4 @@ example {α β : U} (h : α =ₒ β) (x : α) : β := by
   assumption
 
 end Hott.Tactic
+end
