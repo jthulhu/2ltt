@@ -305,6 +305,84 @@ namespace Funₒ
   def biinv : U :=
     linv f ×ₒ rinv f
 
+  theorem ap_section_is_section {α β : U} (f : α →ₒ β) (rp : linv f) {x y : α}
+                                : linv (Pi.lam <| Id.ap f (x := x) (y := y)) := by
+    let ⟪g, h⟫ := rp
+    simp at h
+    exhibitₒ by
+      introₒ p
+      let p' := Id.ap g p
+      rewriteₒ [h x, h y] at p'
+      exact p'
+    introₒ p
+    simp
+    path_inductionₒ p
+    simp
+    generalize h x = p
+    simp at p
+    have h : Πₒ z : α, Πₒ q : z =ₒ x,
+             Id.mp (Id.subst (P := fun hole => (x =ₒ z) =ₒ (x =ₒ hole)) q (Id.refl (x =ₒ z))) (Id.mp (Id.subst (P := fun hole => (z =ₒ z) =ₒ (hole =ₒ z)) q (Id.refl (z =ₒ z))) (Id.refl z)) =ₒ Id.refl x := by
+      introₒ z
+      introₒ q
+      path_inductionₒ q
+      simp
+      rflₒ
+    exact h _ _
+
+  theorem linv.induction {α β : U} (f : α →ₒ β) (flinv : linv f) {x y : α} (p : f x =ₒ f y)
+                         : x =ₒ y := by
+    let ⟪apinv, _⟫ := ap_section_is_section f flinv (x := x) (y := y)
+    exact apinv p
+
+  theorem lemma_a {α β γ : U} (f : α →ₒ β) (g : β →ₒ γ) (h : α →ₒ γ) (H : g ∘ₒ f ~ h)
+                  (glinv : linv g) (hrinv : rinv h) : rinv f := by
+    let ⟪hinv, hinv_proof⟫ := hrinv
+    exhibitₒ hinv ∘ₒ g
+    introₒ x
+    apply linv.induction g glinv
+    simp
+    rewriteₒ [H _, hinv_proof _]
+    simp
+    rflₒ
+
+  abbrev id_endpoint_id {α : U} {x y x' y' : α} (p : x =ₒ x') (q : y =ₒ y') : Funₒ (x =ₒ y) (x' =ₒ y') := by
+    introₒ l
+    exact (p⁻¹ ⬝ l) ⬝ q
+
+  def id_endpoint_id.qinv {α : U} {x y x' y' : α} (p : x =ₒ x') (q : y =ₒ y')
+                          : qinv (id_endpoint_id p q) := by
+    let g := by
+      introₒ l
+      exact (p ⬝ l) ⬝ q⁻¹
+    exhibitₒ g
+    exhibitₒ by
+      introₒ l
+      simp
+      path_inductionₒ p
+      path_inductionₒ q
+      simp
+      rwₒ [
+        Id.refl_concat _ _ _,
+        Id.refl_concat _ _ _,
+        Id.concat_refl _ _ _,
+        Id.concat_refl _ _ _
+      ]
+    introₒ l
+    simp
+    path_inductionₒ p
+    path_inductionₒ q
+    simp
+    rwₒ [
+      Id.refl_concat _ _ _,
+      Id.refl_concat _ _ _,
+      Id.concat_refl _ _ _,
+      Id.concat_refl _ _ _
+    ]
+  def id_endpoint_id.beta {α : U} {x x' : α} (p : x =ₒ x')
+      : id_endpoint_id p p (Id.refl _) =ₒ Id.refl _ := by
+    simp
+    rwₒ [Id.concat_refl _ _ _, Id.inv_concat _ _ _]
+
   def ishae : U :=
     Σₒ g : β →ₒ α, Σₒ η : g ∘ₒ f ~ id, Σₒ ε : f ∘ₒ g ~ id, Πₒ x : α, Id.ap f (η x) =ₒ ε (f x)
 
@@ -370,13 +448,80 @@ namespace Funₒ
       exact h
     ⟪g, h₁, h₂⟫
 
-  theorem qinv_to_contr (q : qinv f) : is_contractible f :=
+  abbrev weakening {α : U} {β β' : α → U} (f : (x : α) →ₒ (β x →ₒ β' x))
+                   : Funₒ (Σₒ x : α, β x) (Σₒ x : α, β' x) :=
+    funₒ ptn => let ⟪x, y⟫ := ptn; ⟪x, f x y⟫
+
+  theorem sigma_closed_under_retract {α : U} {β β' : α → U}
+                                     (r : (x : α) →ₒ Retraction.is_retract (β x) (β' x))
+                                     : Retraction.is_retract (Σₒ x : α, β x) (Σₒ x : α, β' x) := by
+    exhibitₒ by
+      introₒ ptn
+      let ⟪x, y⟫ := ptn
+      let ⟪f, _⟫ := r x
+      exact ⟪x, f y⟫
+    exhibitₒ by
+      introₒ ptn
+      let ⟪x, y⟫ := ptn
+      let ⟪_, g, _⟫ := r x
+      exact ⟪x, g y⟫
+    introₒ ptn
+    let ⟪x, y⟫ := ptn
+    simp
+    rewrite [← Sigmaₒ.eta (r x), ← Sigmaₒ.eta (Sigmaₒ.pr₂ (r x))]
+    let h := Sigmaₒ.pr₂ (Sigmaₒ.pr₂ (r x))
+    simp
+    rewrite [← Sigmaₒ.eta (r x)]
+    simp
+    rwₒ [h y]
+    rflₒ
+
+  theorem linv_cancellation {α β : U} (g : α →ₒ β) (li : linv g) (x y : α) (p : g x =ₒ g y) : x =ₒ y := by
+    let ⟪ap_inv, _⟫ := ap_section_is_section g li (x := x) (y := y)
+    applyₒ ap_inv
+    assumption
+
+  theorem qinv_to_contr (q : qinv f) : is_contractible f := by
     let ⟪g, h₁, h₂⟫ := q
-    Λ y =>
-      let x := g y
-      let is_in_fiber := h₁ y
-      let is_connected := Λ z => sorry
-      ⟪⟪x, is_in_fiber⟫, is_connected⟫
+    introₒ y
+    apply Funₒ.Retraction.retract_elim (α := α) (motive := fun y => U.is_contractible (Σₒ x' : α, f x' =ₒ y))
+    case rp => exact ⟪f, g, h₁⟫
+    introₒ x
+    simp
+    apply Funₒ.retract_preseve_contractible (Σₒ x' : α, x =ₒ x') _
+    · apply sigma_closed_under_retract
+      introₒ y
+      apply Funₒ.Retraction.retract_of_retract <| by
+        exhibitₒ funₒ p => p⁻¹
+        exhibitₒ funₒ p => p⁻¹
+        introₒ x
+        simp
+        exact Id.inv_inv _ _ _
+      exhibitₒ Pi.lam <| Id.ap f
+      apply rinv_is_retraction
+      refine lemma_a (Pi.lam <| Id.ap f) (Pi.lam <| Id.ap g) (funₒ p => Id.ap (g ∘ₒ f) p) ?homm
+                     ?apg_linv ?aggf_rinv
+      · introₒ p
+        exact Id.ap_comp _ _ _
+      · apply ap_section_is_section _
+        exhibitₒ f
+        exact h₁
+      · let ⟪einv, erinv_proof, elinv_proof⟫ := id_endpoint_id.qinv (x' := x) (y' := y) (h₂ x) (h₂ y)
+        let e := id_endpoint_id (h₂ x) (h₂ y)
+        exhibitₒ e
+        introₒ r
+        simp
+        apply @Retraction.retract_elim (x =ₒ y) (g (f x) =ₒ g (f y)) ⟪einv, e, elinv_proof⟫
+                                       (fun r => Id.ap (g ∘ₒ f) (e r) =ₒ r)
+        introₒ r'
+        rewriteₒ [erinv_proof _]
+        simp
+        path_inductionₒ r'
+        simp
+        rewriteₒ [← id_endpoint_id.beta (x' := x) (h₂ x), elinv_proof _]
+        simp
+        rflₒ
+    · exact U.Singleton.is_contr
   end
 
   abbrev is_equiv {α β : U} (f : α →ₒ β) : U :=
@@ -391,6 +536,11 @@ namespace Funₒ
 end Funₒ
 
 infix:50 " ≃ₒ " => Funₒ.equiv
+
+namespace Equivalence
+  def refl (α : U) : α ≃ₒ α :=
+    ⟪Funₒ.id, Funₒ.id_is_equiv⟫
+end Equivalence
 
 namespace Univalence
   def canonical (α β : U) : α =ₒ β →ₒ α ≃ₒ β := by
