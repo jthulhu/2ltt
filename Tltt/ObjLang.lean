@@ -345,7 +345,7 @@ end InnerId
 def Id.{i} {α : U.{i}} (x y : α) : U.{i} :=
   U.fromType.{i} (InnerId x.intoU y.intoU)
 
-infix:40 " =ₒ " => Id
+infix:50 " =ₒ " => Id
 
 @[app_unexpander Id]
 def unexpand_id : Unexpander

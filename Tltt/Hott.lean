@@ -304,7 +304,7 @@ namespace Funₒ
     exact ⟪id, Homotopy.refl id, Homotopy.refl id⟫
 end Funₒ
 
-infix:20 " ≃ₒ " => Funₒ.equiv
+infix:50 " ≃ₒ " => Funₒ.equiv
 
 namespace Univalence
   def canonical (α β : U) : α =ₒ β →ₒ α ≃ₒ β := by
