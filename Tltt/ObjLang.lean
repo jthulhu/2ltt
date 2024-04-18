@@ -53,6 +53,11 @@ register_option pp.lift : Bool := {
 -- prefix:max " ↑ " => lift
 prefix:max "^" => lift
 
+@[app_unexpander lift]
+def unexpand_lift : Unexpander
+  | `($_ $α) => `($α)
+  | _ => throw ()
+
 -- @[delab app.lift]
 -- def delab_lift : Delab := do
 --   `(lift oui)
@@ -116,15 +121,25 @@ namespace Pi
   infixl:50 " @ₒ " => app
   infixr:50 " $ₒ " => app
 
+  @[app_unexpander app]
+  def unexpand_app : Unexpander
+    | `($_ $f $a) => `($f $a)
+    | _ => throw ()
+
+  syntax obj_fun_binder := "Λ " <|> "λₒ " <|> "funₒ "
+  syntax (priority := high) obj_fun_binder ident (" : " term)? " => " term : term
+  macro_rules
+    | `($_:obj_fun_binder $var $[: $type]? => $body) => `(Pi.lam fun $var $[: $type]? => $body)
+
+  @[app_unexpander lam]
+  def unexpand_lam : Unexpander
+    | `($_ fun $x:ident $[: $t]? => $b) => `(funₒ $x $[: $t]? => $b)
+    | _ => throw ()
+
   instance : CoeFun (Pi α β) (fun _ => (x : α) → β x) where
     coe := app
   end
 end Pi
-
-syntax obj_fun_binder := "Λ" <|> "λₒ" <|> "funₒ"
-syntax (priority := high) obj_fun_binder ident (":" term)? "=>" term : term
-macro_rules
-  | `($_:obj_fun_binder $var $[: $type]? => $body) => `(Pi.lam fun $var $[: $type]? => $body)
 
 syntax "Πₒ " ident " : " term ", " term : term
 macro_rules
