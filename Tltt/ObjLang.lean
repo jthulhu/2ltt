@@ -175,6 +175,12 @@ infixr:25 " →ₒ " => Funₒ
 instance {α β : U} : CoeFun (α →ₒ β) (fun _ => α → β) where
   coe := Pi.app
 
+instance {α β : U} : Coe (α →ₒ β) (α → β) where
+  coe := Pi.app
+
+instance {α β : U} : Coe (α → β) (α →ₒ β) where
+  coe := Pi.lam
+
 -- Sigma types
 def Sigma (α : U) (β : α → U) : U :=
   U.fromType (Σ a : α, β a)
