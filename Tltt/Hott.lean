@@ -229,10 +229,48 @@ def U.Singleton.is_contr {α : U} {a : α} : is_contractible (Singleton a) := by
   apply @Id.based_path_induction α a (fun x p'' => ⟪a, Id.refl a⟫ =ₒ ⟪x, p''⟫) (Id.refl _) a' p
 
 namespace Funₒ
+  namespace Retraction
+    def is_retraction {α β : U} (f : α →ₒ β) : U :=
+      Σₒ g : β →ₒ α, f ∘ₒ g ~ id
+
+    def Retraction (α β : U) : U :=
+      Σₒ f : α →ₒ β, is_retraction f
+
+    /--
+    `is_retract β α` means that β is a retract of α, that is, there is a retraction from α to β.
+    -/
+    def is_retract (β α : U) : U :=
+      Retraction α β
+
+    def Retracts (α : U) : U :=
+      Σₒ β : U, is_retract β α
+
+    theorem retract_elim {α β : U} (rp : is_retract β α) {motive : β → U}
+                         (H : Πₒ x : α, motive (Sigmaₒ.pr₁ rp x)) (y : β) : motive y := by
+      let ⟪r, s, p⟫ := rp
+      have h := H (s y)
+      rewriteₒ [p y] at h
+      exact h
+
+    theorem retract_of_retract {α β γ : U} (r₁ : is_retract α β) (r₂ : is_retract β γ)
+                               : is_retract α γ := by
+      let ⟪f, finv, f_hom⟫ := r₁
+      let ⟪g, ginv, g_hom⟫ := r₂
+      exhibitₒ f ∘ₒ g
+      exhibitₒ ginv ∘ₒ finv
+      introₒ x
+      simp
+      rewriteₒ [g_hom _]
+      simp
+      rewriteₒ [f_hom _]
+      simp
+      rflₒ
+  end Retraction
+
   section
   variable {α β : U}
   variable (f : α →ₒ β)
-  
+
   abbrev is_contractible : U :=
     Πₒ y : β, Funₒ.fiber f y |> U.is_contractible
 
