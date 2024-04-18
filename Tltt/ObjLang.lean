@@ -6,7 +6,7 @@ open Lean.PrettyPrinter.Delaborator (Delab delab whenNotPPOption)
 open Lean.PrettyPrinter.Delaborator.SubExpr (getExpr withAppArg)
 open Lean.MonadOptions (getOptions)
 
-section
+noncomputable section
 set_option autoImplicit false
 namespace Hott
 
