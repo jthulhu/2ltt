@@ -85,24 +85,24 @@ example : ^U = liftedU := by rfl
 
 -- Boolean type
 
-def B : U :=
+def Boolₒ : U :=
   U.fromType Bool
 
-namespace B
+namespace Boolₒ
   @[match_pattern]
-  def true' : B :=
+  def trueₒ : Boolₒ :=
     El.mk true
 
   @[match_pattern]
-  def false' : B :=
+  def falseₒ : Boolₒ :=
     El.mk false
 
-  def elim {P : B → U} (b : B) (t : P true') (f : P false') : P b :=
+  protected def elim {P : Boolₒ → U} (b : Boolₒ) (t : P trueₒ) (f : P falseₒ) : P b :=
     match b with
     | ⟨true⟩ => t
     | ⟨false⟩ => f
-end B
-
+end Boolₒ
+export Boolₒ (trueₒ falseₒ)
 
 -- Pi types
 
@@ -199,14 +199,15 @@ namespace Sigmaₒ
     x.intoU.2
 
   @[simp]
-  def beta_pr₁ {α : U} {β : α → U} (x : α) (y : β x) : pr₁ (mk x y) = x := by rfl
+  def pr₁.beta {α : U} {β : α → U} (x : α) (y : β x) : pr₁ (mk x y) = x := by rfl
 
   @[simp]
-  def beta_pr₂ {α : U} {β : α → U} (x : α) (y : β x) : pr₂ (mk x y) = y := by rfl
+  def pr₂.beta {α : U} {β : α → U} (x : α) (y : β x) : pr₂ (mk x y) = y := by rfl
 
   -- @[simp]
   def eta {α : U} {β : α → U} (x : Sigmaₒ α β) : mk (pr₁ x) (pr₂ x) = x := by rfl
 end Sigmaₒ
+export Sigmaₒ (pr₁ pr₂)
 
 syntax "Σₒ " ident " : " term ", " term : term
 macro_rules
@@ -229,40 +230,41 @@ def unexpand_sigma_mk : Unexpander
 
 -- Coproduct
 
-def Plus (α : U) (β : U) : U :=
+def Sumₒ (α : U) (β : U) : U :=
   U.fromType (α ⊕ β)
   
-infixr:30 " ⊕ₒ " => Plus
+infixr:30 " ⊕ₒ " => Sumₒ
 
-@[app_unexpander Plus]
+@[app_unexpander Sumₒ]
 def unexpand_plus : Unexpander
   | `($_ $α $β) => ``($α ⊕ₒ $β)
   | _ => throw ()
 
-namespace Plus
+namespace Sumₒ
   @[match_pattern]
-  def inl {α : U} {β : U} (a : α) : α ⊕ₒ β :=
+  def inlₒ {α : U} {β : U} (a : α) : α ⊕ₒ β :=
     El.mk (Sum.inl a)
 
   @[match_pattern]
-  def inr {α : U} {β : U} (b : β) : α ⊕ₒ β :=
+  def inrₒ {α : U} {β : U} (b : β) : α ⊕ₒ β :=
     El.mk (Sum.inr b)
 
-  def elim {α : U} {β : U} {P : α ⊕ₒ β → U} (l : (a : α) → P (inl a)) (r : (b : β) → P (inr b))
+  protected def elim {α : U} {β : U} {P : α ⊕ₒ β → U} (l : (a : α) → P (inlₒ a)) (r : (b : β) → P (inrₒ b))
     (x : α ⊕ₒ β) : P x :=
     match x with
     | ⟨.inl a⟩ => l a
     | ⟨.inr b⟩ => r b
-end Plus
+end Sumₒ
+export Sumₒ (inlₒ inrₒ)
 
 -- Product
 
-def Times (α : U) (β : U) : U :=
+def Prodₒ (α : U) (β : U) : U :=
   Sigmaₒ α (fun _ => β)
 
-infixr:35 " ×ₒ " => Times
+infixr:35 " ×ₒ " => Prodₒ
 
-@[app_unexpander Times]
+@[app_unexpander Prodₒ]
 def unexpand_times : Unexpander
   | `($_ $α $β) => ``($α ×ₒ $β)
   | _ => throw ()
@@ -289,7 +291,7 @@ def Emptyₒ : U :=
   U.fromType Empty
 
 namespace Emptyₒ
-  def elim {α : U} (x : Emptyₒ) : α :=
+  protected def elim {α : U} (x : Emptyₒ) : α :=
     x.intoU.rec
 end Emptyₒ
 
@@ -315,8 +317,14 @@ namespace Natₒ
       | 0 => c₀'
       | m'+1 => natElim c₀' cₙ' m' |> cₙ' m'
     natElim c₀ (fun n' p => cₙ (El.mk n') p) n.intoU
-end Natₒ
 
+  def ofNat : Nat → Natₒ
+    | 0 => zero
+    | n+1 => succ <| ofNat n
+
+  instance (n : Nat) : OfNat Natₒ n where
+    ofNat := ofNat n
+end Natₒ
 
 -- Identity type
 
@@ -346,7 +354,7 @@ namespace Id
   def refl {α : U} (x : α) : x =ₒ x :=
     ⟨Inner.refl x.intoU⟩
 
-  def elim {α : U} {P : (x : α) → (y : α) → x =ₒ y → U} (h : (x : α) → P x x (refl x)) (x : α)
+  protected def elim {α : U} {P : (x : α) → (y : α) → x =ₒ y → U} (h : (x : α) → P x x (refl x)) (x : α)
            (y : α) (p : x =ₒ y) : P x y p := by
     apply El.mk
     apply Inner.elim (P := fun a b q => (P (El.mk a) (El.mk b) (El.mk q)).intoU.intoType)
@@ -354,11 +362,16 @@ namespace Id
     apply El.intoU
     apply h
 
+  @[simp]
+  def elim.beta {α : U} {P : (x : α) → (y : α) → x =ₒ y → U} (h : (x : α) → P x x (refl x))
+                (x : α) : Id.elim h x x (refl x) = h x := by
+    rfl
+
   def symm {α : U} (x y : α) (p : x =ₒ y) : y =ₒ x :=
-    elim (P := fun x y _ => y =ₒ x) refl x y p
+    Id.elim (P := fun x y _ => y =ₒ x) refl x y p
 
   @[simp]
-  theorem symm_beta {α : U} (a : α) : symm a a (refl a) = refl a := by rfl
+  theorem symm.beta {α : U} (a : α) : symm a a (refl a) = refl a := by rfl
 
   def inv {α : U} {x y : α} (p : x =ₒ y): y =ₒ x :=
     symm x y p
@@ -401,13 +414,13 @@ namespace Id
     subst (P := fun x => x) h a
 
   @[simp]
-  theorem mp_beta {α : U} : mp (refl α) = id := by rfl
+  theorem mp.beta {α : U} : mp (refl α) = id := by rfl
 
   def mpr {α β : U} (h : α =ₒ β) (b : β) : α :=
     mp (symm α β h) b
 
   @[simp]
-  theorem mpr_beta {α : U} : mpr (refl α) = id := by rfl
+  theorem mpr.beta {α : U} : mpr (refl α) = id := by rfl
 end Id
 
 end Hott
