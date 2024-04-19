@@ -30,6 +30,9 @@ namespace Funₒ
   @[reducible]
   def compose {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) : α →ₒ γ :=
     Λ x => f $ₒ g x
+
+  @[simp]
+  def compose.beta {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) (x : α) : compose f g x = f (g x) := rfl
 end Funₒ
 
 infixr:90 " ∘ₒ " => Funₒ.compose
@@ -266,6 +269,10 @@ namespace Funₒ
       simp
       rflₒ
   end Retraction
+
+  def happly {α : U} {β : α → U} {f g : Pi α β} (p : f =ₒ g) : f ~ g := by
+    path_inductionₒ p
+    exact Homotopy.refl _
 
   section
   variable {α β : U}
@@ -530,8 +537,15 @@ namespace Funₒ
   abbrev is_equiv {α β : U} (f : α →ₒ β) : U :=
     ishae f
 
+  def qinv_to_equiv {α β : U} {f : α →ₒ β} : qinv f → is_equiv f :=
+    qinv_to_ishae f
+
   def equiv (α β : U) : U :=
     Σₒ f : α →ₒ β, is_equiv f
+
+  def equiv_to_qinv {α β : U} (e : equiv α β) : Σₒ f : α →ₒ β, qinv f :=
+    let ⟪f, hae⟫ := e
+    ⟪f, ishae_to_qinv f hae⟫
 
   theorem id_is_equiv {α : U} : is_equiv (@id α) := by
     apply qinv_to_ishae
@@ -540,9 +554,42 @@ end Funₒ
 
 infix:50 " ≃ₒ " => Funₒ.equiv
 
+def Equivalence.refl (α : U) : α ≃ₒ α :=
+  ⟪Funₒ.id, Funₒ.id_is_equiv⟫
+
+namespace Funₒ
+  @[simp]
+  def equiv_to_qinv.beta {α : U} : equiv_to_qinv (Equivalence.refl α)
+                                   = ⟪Funₒ.id, Funₒ.id, funₒ x => by rflₒ, funₒ x => by rflₒ⟫ := by
+    rfl'
+
+  @[simp]
+  def ishae_to_qinv.beta {α : U} : ishae_to_qinv id id_is_equiv
+                                   = ⟪Funₒ.id, funₒ x : α => by rflₒ, funₒ x => by rflₒ⟫ := by
+    rfl'
+end Funₒ
+
 namespace Equivalence
-  def refl (α : U) : α ≃ₒ α :=
-    ⟪Funₒ.id, Funₒ.id_is_equiv⟫
+  theorem trans {α β γ : U} (e : α ≃ₒ β) (e' : β ≃ₒ γ) : α ≃ₒ γ := by
+    let ⟪f, g, fg_id, gf_id⟫ := Funₒ.equiv_to_qinv e
+    let ⟪f', g', f'g'_id, g'f'_id⟫ := Funₒ.equiv_to_qinv e'
+    exhibitₒ f' ∘ₒ f
+    apply Funₒ.qinv_to_ishae _
+    exhibitₒ g ∘ₒ g'
+    exhibitₒ by
+      introₒ x
+      simp
+      rwₒ [fg_id _, f'g'_id _]
+      rflₒ
+    introₒ x
+    simp
+    rwₒ [g'f'_id _, gf_id _]
+    rflₒ
+
+  -- Definition 4.7.5
+  def total {α : U} {β β' : α → U} (f : (x : α) →ₒ (β x →ₒ β' x))
+            : Funₒ (Σₒ x : α, β x) (Σₒ x : α, β' x) :=
+    funₒ ptn => let ⟪x, y⟫ := ptn; ⟪x, f x y⟫
 end Equivalence
 
 namespace Univalence
@@ -551,12 +598,27 @@ namespace Univalence
     path_inductionₒ p
     exact ⟪Funₒ.id, Funₒ.id_is_equiv⟫
 
+  @[simp]
+  def canonical.beta {α : U} : canonical α α (Id.refl α) = Equivalence.refl α := by
+    rfl
+
   example : Natₒ ≃ₒ Natₒ := canonical Natₒ Natₒ (by rflₒ)
 
   axiom univalence {α β : U} : Funₒ.is_equiv (canonical α β)
 
+  theorem univalence.beta {α : U} : pr₁ (@univalence α α) (Equivalence.refl α) =ₒ Id.refl α := by
+    let ⟪canon_inv, rinv, _⟫ := univalence
+    simp
+    rewrite [← canonical.beta]
+    rewriteₒ [rinv _]
+    rflₒ
+
   def eqv_to_id {α β : U} : α ≃ₒ β → α =ₒ β :=
     pr₁ <| univalence
+
+  @[simp]
+  def eqv_to_id.beta {α : U} : eqv_to_id (Equivalence.refl α) =ₒ Id.refl α := by
+    exact univalence.beta
 end Univalence
 
 section Lemma_4_8_1
