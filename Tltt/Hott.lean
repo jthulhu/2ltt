@@ -346,7 +346,7 @@ namespace Funₒ
     apply linv.induction g glinv
     simp
     rewriteₒ [H _, hinv_proof _]
-    simp
+    dsimp
     rflₒ
 
   abbrev id_endpoint_id {α : U} {x y x' y' : α} (p : x =ₒ x') (q : y =ₒ y')
@@ -424,7 +424,6 @@ namespace Funₒ
       let p₁ : g ~ g ∘ₒ f ∘ₒ h := Λ z => by
         simp
         rewriteₒ [h₂ z]
-        simp
         rflₒ
       let p₂ : g ∘ₒ f ∘ₒ h ~ h := Λ z => by
         apply h₁ (h z)
@@ -452,10 +451,6 @@ namespace Funₒ
       simp at h
       exact h
     ⟪g, h₁, h₂⟫
-
-  abbrev weakening {α : U} {β β' : α → U} (f : (x : α) →ₒ (β x →ₒ β' x))
-                   : Funₒ (Σₒ x : α, β x) (Σₒ x : α, β' x) :=
-    funₒ ptn => let ⟪x, y⟫ := ptn; ⟪x, f x y⟫
 
   theorem sigma_closed_under_retract {α : U} {β β' : α → U}
                                      (r : (x : α) →ₒ Retraction.is_retract (β x) (β' x))
@@ -561,8 +556,7 @@ namespace Univalence
   axiom univalence {α β : U} : Funₒ.is_equiv (canonical α β)
 
   def eqv_to_id {α β : U} : α ≃ₒ β → α =ₒ β :=
-    let ⟪g, _, _⟫ := Funₒ.ishae_to_qinv (canonical α β) univalence
-    g
+    pr₁ <| univalence
 end Univalence
 
 section Lemma_4_8_1
