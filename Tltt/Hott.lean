@@ -20,7 +20,7 @@ namespace Funₒ
     Λ x => x
 
   @[simp]
-  def id_is_id {α : U} {x : α} : (id $ₒ x) = x := by
+  def id_is_id {α : U} {x : α} : id x = x :=
     rfl
 
   @[reducible]
@@ -31,11 +31,11 @@ namespace Funₒ
   def compose {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) : α →ₒ γ :=
     Λ x => f $ₒ g x
 
-  @[simp]
-  def compose.beta {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) (x : α) : compose f g x = f (g x) := rfl
-end Funₒ
+  infixr:90 " ∘ₒ " => compose
 
-infixr:90 " ∘ₒ " => Funₒ.compose
+  @[simp]
+  theorem compose.beta {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) (x : α) : (f ∘ₒ g) x = f (g x) := rfl
+
 
 namespace Id
   theorem based_path_induction {α : U} (a : α) {motive : (x : α) → a =ₒ x → U}
@@ -221,15 +221,19 @@ def Funₒ.fiber {α : U} {β : U} (f : α →ₒ β) (y : β) : U :=
 abbrev U.is_contractible (α : U) : U :=
   Σₒ a : α, Πₒ x : α, a =ₒ x
 
-def U.Singleton {α : U} (x : α) : U :=
+def Singleton {α : U} (x : α) : U :=
   Σₒ x' : α, x =ₒ x'
 
-def U.Singleton.is_contr {α : U} {a : α} : is_contractible (Singleton a) := by
-  exhibitₒ ⟪a, Id.refl a⟫
-  introₒ o
-  let ⟪a', p⟫ := o
-  simp at p
-  apply @Id.based_path_induction α a (fun x p'' => ⟪a, Id.refl a⟫ =ₒ ⟪x, p''⟫) (Id.refl _) a' p
+namespace Singleton
+  -- Lemma 3.11.8
+  -- Note: in the book, this is prooved using the characterization of paths in Σₒ-types
+  theorem is_contr {α : U} {a : α} : U.is_contractible (Singleton a) := by
+    exhibitₒ ⟪a, Id.refl a⟫
+    introₒ o
+    let ⟪a', p⟫ := o
+    simp at p
+    apply @Id.based_path_induction α a (fun x p'' => ⟪a, Id.refl a⟫ =ₒ ⟪x, p''⟫) (Id.refl _) a' p
+end Singleton
 
 namespace Funₒ
   namespace Retraction
@@ -531,7 +535,7 @@ namespace Funₒ
         rewriteₒ [← id_endpoint_id.beta (x' := x) (h₂ x), elinv_proof _]
         simp
         rflₒ
-    · exact U.Singleton.is_contr
+    · exact Singleton.is_contr
   end
 
   abbrev is_equiv {α β : U} (f : α →ₒ β) : U :=
