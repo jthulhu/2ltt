@@ -71,11 +71,14 @@ open Lean (
 
 noncomputable section
 
-open Hott
-
 set_option autoImplicit false
 
 namespace Hott.Tactic
+
+namespace Rfl
+  /-- `rflₒ` closes a goal of the forw `x =ₒ x` with object-level reflexivity. -/
+  macro "rflₒ " : tactic => `(tactic| apply _root_.Hott.Id.refl)
+end Rfl
 
 /-- If given `lift.{u} α`, returns `(u, α)`. -/
 def _root_.Lean.Expr.lift? (e : Expr) : MetaM (Option (Level × Expr)) := do
@@ -238,120 +241,125 @@ def mkIdSubst (motive h idh : Expr) : MetaM Expr := do
         throwError "Motive target type{indentExpr motiveTargetType}\nis not a object-level universe type"
       return mkAppN (.const ``Id.subst [u₁, u₂]) #[α, motive, lhs, rhs, idh, h]
     | _ => throwError "AppBuilder for '{``Id.subst}, invalid motive{indentExpr motive}"
-    
----  Object-level rewrite: rewriteₒ
-def rewriteObj (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
-               (occs : Occurrences := .all) : MetaM RewriteResult :=
-  mvarId.withContext do
-    mvarId.checkNotAssigned `rewriteₒ
-    let heqType ← inferType heq
-    let heqObjType ← heqType.objType!
-    let (newMVars, binderInfos, heqType) ← forallMetaTelescopeReducing heqType
-    let heq := mkAppN heq newMVars
-    match ← heqObjType.id? with
-    | none => throwTacticEx `rewriteₒ mvarId m!"object equality expected {indentExpr heqType}"
-    | some (u, α, lhs, rhs) => do
-      let (heq, heqType, lhs, rhs) ← do
-        if symm then
-          let heq ← mkIdSymm heq
-          let heqType ← mkId u α rhs lhs
-          pure (heq, heqType, rhs, lhs)
+
+namespace Rewrite
+  ---  Object-level rewrite: rewriteₒ
+  def rewriteObj (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
+                 (occs : Occurrences := .all) : MetaM RewriteResult :=
+    mvarId.withContext do
+      mvarId.checkNotAssigned `rewriteₒ
+      let heqType ← inferType heq
+      let heqObjType ← heqType.objType!
+      let (newMVars, binderInfos, heqType) ← forallMetaTelescopeReducing heqType
+      let heq := mkAppN heq newMVars
+      match ← heqObjType.id? with
+      | none => throwTacticEx `rewriteₒ mvarId m!"object equality expected {indentExpr heqType}"
+      | some (u, α, lhs, rhs) => do
+        let (heq, heqType, lhs, rhs) ← do
+          if symm then
+            let heq ← mkIdSymm heq
+            let heqType ← mkId u α rhs lhs
+            pure (heq, heqType, rhs, lhs)
+          else
+            pure (heq, heqType, lhs, rhs)
+        let lhs ← instantiateMVars lhs
+        let rhs ← instantiateMVars rhs
+        if lhs.getAppFn.isMVar then
+          throwTacticEx `rewriteₒ mvarId m!"pattern is a metavariable{indentExpr lhs}\nfrom equation{indentExpr heqType}"
+        let e ← instantiateMVars e
+        let some (e_level, e_obj) ← e.lift?
+          | throwTacticEx `rewriteₒ mvarId m!"the goal is not an object-level type"
+        let e_abstₒ ← kabstract e_obj lhs occs
+        unless e_abstₒ.hasLooseBVars do
+          throwTacticEx `rewriteₒ mvarId m!"did not find instance of the pattern in the target expresion{indentExpr lhs}"
+        let eNewₒ := e_abstₒ.instantiate1 rhs
+        let eNewₒ ← instantiateMVars eNewₒ
+        let e_objeq_eabst ← mkId (.succ e_level) (.const ``U [e_level]) e_obj e_abstₒ
+        let liftedα ← α.lift
+        let motive := Expr.lam `_a liftedα e_objeq_eabst BinderInfo.default
+        unless ← isTypeCorrect motive do
+          throwTacticEx `rewriteₒ mvarId "motive is not type correct..."
+        let eqRefl ← mkIdRefl e_obj
+        let eqPrf ← mkIdSubst motive eqRefl heq
+        postprocessAppMVars `rewriteₒ mvarId newMVars binderInfos
+        let newMVarIds ← newMVars.map Expr.mvarId! |>.filterM (not <$> ·.isAssigned)
+        let otherMVarIds ← getMVarsNoDelayed eqPrf
+        let otherMVarIds := otherMVarIds.filter (!newMVarIds.contains ·)
+        let newMVarIds := newMVarIds ++ otherMVarIds
+        pure { eNew := ← eNewₒ.lift, eqProof := eqPrf, mvarIds := newMVarIds.toList }
+
+  def mkExpectedObjTypeHint (e : Expr) (expectedObjType : Expr) : MetaM Expr := do
+    let u ← getObjLevel expectedObjType
+    return mkAppN (.const ``id [.succ u]) #[expectedObjType.liftWith u, e]
+
+  def replaceLocalDeclObj (mvarId : MVarId) (fvarId : FVarId) (typeNew : Expr)
+                          (eqProof : Expr) : MetaM AssertAfterResult :=
+    mvarId.withContext do
+      let localDecl ← fvarId.getDecl
+      let target ← fvarId.getType
+      let some (u, targetₒ) ← target.lift?
+        | throwTacticEx `rewriteₒ mvarId m!"target {indentExpr target}\nis not an object-level type"
+      let targetNewₒ ← typeNew.objType!
+      let typeNewPr := mkAppN (.const ``Id.mp [u]) #[targetₒ, targetNewₒ, eqProof, .fvar fvarId]
+      let (_, localDecl') ← findMaxFVar typeNew |>.run localDecl
+      let result ← mvarId.assertAfter localDecl'.fvarId localDecl.userName typeNew typeNewPr
+      (do let mvarIdNew ← result.mvarId.clear fvarId
+          pure { result with mvarId := mvarIdNew })
+      <|> pure result
+  where
+    findMaxFVar (e : Expr) : StateRefT LocalDecl MetaM Unit :=
+      e.forEach' fun e => do
+        if e.isFVar then
+          let localDecl' ← e.fvarId!.getDecl
+          modify fun localDecl => if localDecl'.index > localDecl.index then localDecl' else localDecl
+          return false
         else
-          pure (heq, heqType, lhs, rhs)
-      let lhs ← instantiateMVars lhs
-      let rhs ← instantiateMVars rhs
-      if lhs.getAppFn.isMVar then
-        throwTacticEx `rewriteₒ mvarId m!"pattern is a metavariable{indentExpr lhs}\nfrom equation{indentExpr heqType}"
-      let e ← instantiateMVars e
-      let some (e_level, e_obj) ← e.lift?
-        | throwTacticEx `rewriteₒ mvarId m!"the goal is not an object-level type"
-      let e_abstₒ ← kabstract e_obj lhs occs
-      unless e_abstₒ.hasLooseBVars do
-        throwTacticEx `rewriteₒ mvarId m!"did not find instance of the pattern in the target expresion{indentExpr lhs}"
-      let eNewₒ := e_abstₒ.instantiate1 rhs
-      let eNewₒ ← instantiateMVars eNewₒ
-      let e_objeq_eabst ← mkId (.succ e_level) (.const ``U [e_level]) e_obj e_abstₒ
-      let liftedα ← α.lift
-      let motive := Expr.lam `_a liftedα e_objeq_eabst BinderInfo.default
-      unless ← isTypeCorrect motive do
-        throwTacticEx `rewriteₒ mvarId "motive is not type correct..."
-      let eqRefl ← mkIdRefl e_obj
-      let eqPrf ← mkIdSubst motive eqRefl heq
-      postprocessAppMVars `rewriteₒ mvarId newMVars binderInfos
-      let newMVarIds ← newMVars.map Expr.mvarId! |>.filterM (not <$> ·.isAssigned)
-      let otherMVarIds ← getMVarsNoDelayed eqPrf
-      let otherMVarIds := otherMVarIds.filter (!newMVarIds.contains ·)
-      let newMVarIds := newMVarIds ++ otherMVarIds
-      pure { eNew := ← eNewₒ.lift, eqProof := eqPrf, mvarIds := newMVarIds.toList }
+          return e.hasFVar
 
-def mkExpectedObjTypeHint (e : Expr) (expectedObjType : Expr) : MetaM Expr := do
-  let u ← getObjLevel expectedObjType
-  return mkAppN (.const ``id [.succ u]) #[expectedObjType.liftWith u, e]
+  def replaceTargetId (mvarId : MVarId) (targetNew : Expr) (eqProof : Expr) : MetaM MVarId :=
+    mvarId.withContext do
+      mvarId.checkNotAssigned `replaceTarget
+      let tag ← mvarId.getTag
+      let mvarNew ← mkFreshExprSyntheticOpaqueMVar targetNew tag
+      let target ← mvarId.getType
+      let some (u, targetₒ) ← target.lift?
+        | throwTacticEx `rewriteₒ mvarId m!"target {indentExpr target}\nis not an object-level type"
+      let targetNewₒ ← targetNew.objType!
+      let eq ← mkId (.succ u) (.const ``U [u]) targetₒ targetNewₒ
+      let newProof ← mkExpectedObjTypeHint eqProof eq
+      let val := mkAppN (.const ``Id.mpr [u]) #[targetₒ, targetNewₒ, newProof, mvarNew]
+      mvarId.assign val
+      return mvarNew.mvarId!
 
-def replaceLocalDeclObj (mvarId : MVarId) (fvarId : FVarId) (typeNew : Expr)
-                        (eqProof : Expr) : MetaM AssertAfterResult :=
-  mvarId.withContext do
-    let localDecl ← fvarId.getDecl
-    let target ← fvarId.getType
-    let some (u, targetₒ) ← target.lift?
-      | throwTacticEx `rewriteₒ mvarId m!"target {indentExpr target}\nis not an object-level type"
-    let targetNewₒ ← typeNew.objType!
-    let typeNewPr := mkAppN (.const ``Id.mp [u]) #[targetₒ, targetNewₒ, eqProof, .fvar fvarId]
-    let (_, localDecl') ← findMaxFVar typeNew |>.run localDecl
-    let result ← mvarId.assertAfter localDecl'.fvarId localDecl.userName typeNew typeNewPr
-    (do let mvarIdNew ← result.mvarId.clear fvarId
-        pure { result with mvarId := mvarIdNew })
-    <|> pure result
-where
-  findMaxFVar (e : Expr) : StateRefT LocalDecl MetaM Unit :=
-    e.forEach' fun e => do
-      if e.isFVar then
-        let localDecl' ← e.fvarId!.getDecl
-        modify fun localDecl => if localDecl'.index > localDecl.index then localDecl' else localDecl
-        return false
-      else
-        return e.hasFVar
+  def rewriteTarget (stx : Syntax) (symm : Bool) : TacticM Unit := do
+    withSynthesize <| withMainContext do
+      let e ← elabTerm stx none true
+      let r ← rewriteObj (← getMainGoal) (← getMainTarget) e symm
+      let mvarId' ← replaceTargetId (← getMainGoal) r.eNew r.eqProof
+      replaceMainGoal (mvarId' :: r.mvarIds)
 
-def replaceTargetId (mvarId : MVarId) (targetNew : Expr) (eqProof : Expr) : MetaM MVarId :=
-  mvarId.withContext do
-    mvarId.checkNotAssigned `replaceTarget
-    let tag ← mvarId.getTag
-    let mvarNew ← mkFreshExprSyntheticOpaqueMVar targetNew tag
-    let target ← mvarId.getType
-    let some (u, targetₒ) ← target.lift?
-      | throwTacticEx `rewriteₒ mvarId m!"target {indentExpr target}\nis not an object-level type"
-    let targetNewₒ ← targetNew.objType!
-    let eq ← mkId (.succ u) (.const ``U [u]) targetₒ targetNewₒ
-    let newProof ← mkExpectedObjTypeHint eqProof eq
-    let val := mkAppN (.const ``Id.mpr [u]) #[targetₒ, targetNewₒ, newProof, mvarNew]
-    mvarId.assign val
-    return mvarNew.mvarId!
+  def rewriteLocalDecl (stx : Syntax) (symm : Bool) (fvarId : FVarId) : TacticM Unit := do
+    withSynthesize <| withMainContext do
+      let e ← elabTerm stx none true
+      let localDecl ← fvarId.getDecl
+      let rwResult ← rewriteObj (← getMainGoal) localDecl.type e symm
+      let replaceResult ← replaceLocalDeclObj (← getMainGoal) fvarId rwResult.eNew rwResult.eqProof
+      replaceMainGoal (replaceResult.mvarId :: rwResult.mvarIds)
 
-def rewriteTarget (stx : Syntax) (symm : Bool) : TacticM Unit := do
-  withSynthesize <| withMainContext do
-    let e ← elabTerm stx none true
-    let r ← rewriteObj (← getMainGoal) (← getMainTarget) e symm
-    let mvarId' ← replaceTargetId (← getMainGoal) r.eNew r.eqProof
-    replaceMainGoal (mvarId' :: r.mvarIds)
+  syntax (name := rewriteSeqObj) "rewriteₒ" rwRuleSeq (location)? : tactic
 
-def rewriteLocalDecl (stx : Syntax) (symm : Bool) (fvarId : FVarId) : TacticM Unit := do
-  withSynthesize <| withMainContext do
-    let e ← elabTerm stx none true
-    let localDecl ← fvarId.getDecl
-    let rwResult ← rewriteObj (← getMainGoal) localDecl.type e symm
-    let replaceResult ← replaceLocalDeclObj (← getMainGoal) fvarId rwResult.eNew rwResult.eqProof
-    replaceMainGoal (replaceResult.mvarId :: rwResult.mvarIds)
+  @[tactic rewriteSeqObj]
+  def rewriteSeqObjImpl : Tactic := fun stx => do
+    let loc := expandOptLocation stx[2]
+    withRWRulesSeq stx[0] stx[1] fun symm term => do
+      withLocation loc
+        (rewriteLocalDecl term symm ·)
+        (rewriteTarget term symm)
+        (throwTacticEx `rewriteₒ · "did not find instance of the pattern in the current goal")
 
-syntax (name := rewriteSeqObj) "rewriteₒ" rwRuleSeq (location)? : tactic
-
-@[tactic rewriteSeqObj]
-def rewriteSeqObjImpl : Tactic := fun stx => do
-  let loc := expandOptLocation stx[2]
-  withRWRulesSeq stx[0] stx[1] fun symm term => do
-    withLocation loc
-      (rewriteLocalDecl term symm ·)
-      (rewriteTarget term symm)
-      (throwTacticEx `rewriteₒ · "did not find instance of the pattern in the current goal")
+  macro "rwₒ " s:rwRuleSeq l:(location)? : tactic =>
+    `(tactic| (rewriteₒ $s $(l)?; try (with_reducible rflₒ)))
+end Rewrite
 
 namespace PathInduction
   syntax (name := path_induction_obj) "path_inductionₒ " term (" with refl " term)? : tactic
@@ -486,18 +494,22 @@ namespace Check
     | _ => throwUnsupportedSyntax
 end Check
 
-/-- `rflₒ` closes a goal of the forw `x =ₒ x` with object-level reflexivity. -/
-macro "rflₒ " : tactic => `(tactic| apply _root_.Hott.Id.refl)
+namespace Intro
+  syntax "introₒ " notFollowedBy("|") (ppSpace colGt term:max)* : tactic
+  macro_rules
+    | `(tactic| introₒ $first $[$pat]*) => `(tactic| apply Pi.lam; intro $first $[$pat]*)
+end Intro
 
-macro "rwₒ " s:rwRuleSeq l:(location)? : tactic =>
-  `(tactic| (rewriteₒ $s $(l)?; try (with_reducible rflₒ)))
+namespace Apply
+  macro "applyₒ " h:term : tactic =>
+    `(tactic| apply Pi.app $h)
+end Apply
 
-syntax "introₒ " notFollowedBy("|") (ppSpace colGt term:max)* : tactic
-macro_rules
-  | `(tactic| introₒ $first $[$pat]*) => `(tactic| apply Pi.lam; intro $first $[$pat]*)
-
-macro "applyₒ " h:term : tactic =>
-  `(tactic| apply Pi.app $h)
+namespace Revert
+  syntax "revertₒ " ident : tactic
+  macro_rules
+    | `(tactic| revertₒ $x) => `(tactic| revert $x; apply Pi.app)
+end Revert
 
 example {α β : U} (h : β =ₒ α) (x : α) : β := by
   rewriteₒ [h]
