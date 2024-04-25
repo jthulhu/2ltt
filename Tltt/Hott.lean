@@ -151,7 +151,6 @@ namespace Homotopy
     variable (f g h : Pi α P)
     variable (h₁ : f ~ g) (h₂ : g ~ h)
 
-    @[match_pattern]
     theorem refl : f ~ f := by
       introₒ x
       rflₒ
