@@ -557,6 +557,11 @@ namespace Check
       goal.withContext do
         let goal_type ← goal.getType
         Lean.Meta.check goal_type
+    | `(tactic| check $p:ident) => do
+      let goal ← getMainGoal
+      goal.withContext do
+        let lh ← getFVarId p.raw
+        Lean.Meta.check <| ← lh.getType
     | _ => throwUnsupportedSyntax
 end Check
 
