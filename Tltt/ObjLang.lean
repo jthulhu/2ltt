@@ -8,7 +8,7 @@ open Lean.MonadOptions (getOptions)
 
 noncomputable section
 set_option autoImplicit false
-namespace Hott
+namespace Tltt.Hott
 
 -- Universe setup
 --
@@ -437,6 +437,5 @@ namespace Id
   theorem mpr.beta {α : U} : mpr (refl α) = id := by rfl
 end Id
 
-end Hott
 
 end

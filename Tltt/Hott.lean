@@ -9,8 +9,7 @@ noncomputable section
 -- this module by peeking inside the definition of object languages, we must "speak" in the
 -- object language.
 
-namespace Hott
-open Hott
+namespace Tltt.Hott
 
 -- Composition
 
@@ -106,7 +105,7 @@ namespace Id
     variable {α β γ : U}
 
     -- Lemma 2.2.1
-    def _root_.Hott.Funₒ.ap (f : α →ₒ β) {x y : α} (p : x =ₒ y) : f x =ₒ f y := by
+    def _root_.Tltt.Hott.Funₒ.ap (f : α →ₒ β) {x y : α} (p : x =ₒ y) : f x =ₒ f y := by
       path_inductionₒ p
       rflₒ
 
@@ -251,7 +250,7 @@ namespace Funₒ
     def is_retract (β α : U) : U :=
       Retraction α β
 
-    abbrev _root_.Hott.U.is_retract (β α : U) : U :=
+    abbrev _root_.Tltt.Hott.U.is_retract (β α : U) : U :=
       Retraction.is_retract β α
 
     def Retracts (α : U) : U :=
@@ -1131,5 +1130,5 @@ namespace Extensionality
   end Theorem_4_9_5
 end Extensionality
 
-end Hott
+end Tltt.Hott
 end
