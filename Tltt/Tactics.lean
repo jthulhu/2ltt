@@ -117,6 +117,10 @@ def _root_.Lean.Expr.objType! (e : Expr) : MetaM Expr := do
   let some (_, t) ← e.lift? | throwError "{indentExpr e} is not an object-level type"
   return t
 
+@[inline]
+def _root_.Lean.Expr.inferObjType? (e : Expr) : MetaM (Option (Level × Expr)) := do
+  let t ← inferType e
+  t.lift?
 
 /-- Given `x : lift.{u} α`, returns (u, α). -/
 @[inline]
@@ -244,6 +248,32 @@ def mkIdSubst (motive h idh : Expr) : MetaM Expr := do
         throwError "Motive target type{indentExpr motiveTargetType}\nis not a object-level universe type"
       return mkAppN (.const ``Id.subst [u₁, u₂]) #[α, motive, lhs, rhs, idh, h]
     | _ => throwError "AppBuilder for '{``Id.subst}, invalid motive{indentExpr motive}"
+
+namespace DotExpansion
+  syntax:max term "₊" ident : term
+
+  elab_rules : term
+    | `(term| $e:term₊$fn:ident) => do
+      let e_term ← Lean.Elab.Term.elabTerm e none
+      let some (_, e_type) ← e_term.inferObjType?
+        | throwError "{indentExpr e_term}\nis not an object-level term"
+      let rec extract_type (l : Expr) := do
+        match l with
+        | .const name _ => return name
+        | .mdata _ head
+        | .app head _ => extract_type head
+        | _ =>
+          throwError "the type should have the form `C ...` where `C` is a constant, but it's{indentExpr l}"
+      let type_name ← extract_type (← instantiateMVars e_type)
+      let .ident info rawVal name preresolved := fn.raw
+        | throwError "it doesn't work this way, billy...?"
+      let actual_ident := ⟨.ident info  rawVal (type_name ++ name) preresolved⟩
+      let new_stx ← `($actual_ident $e)
+      Lean.Elab.Term.elabTerm new_stx none
+      -- mkAppM (type_name ++ name) #[e_term]
+
+  macro e:term " ∣>₊" f:ident : term => `(($e)₊$f)
+end DotExpansion
 
 namespace Rewrite
   ---  Object-level rewrite: rewriteₒ

@@ -197,18 +197,22 @@ namespace Sigmaₒ
   def pr₁ {α : U} {β : α → U} (x : Sigmaₒ α β) : α :=
     x.intoU.1
 
+  postfix:max "₊1" => pr₁
+
   @[match_pattern, inline]
   def pr₂ {α : U} {β : α → U} (x : Sigmaₒ α β) : β (pr₁ x) :=
     x.intoU.2
 
-  @[simp]
-  def pr₁.beta {α : U} {β : α → U} (x : α) (y : β x) : pr₁ (mk x y) = x := by rfl
+  postfix:max "₊2" => pr₂
 
   @[simp]
-  def pr₂.beta {α : U} {β : α → U} (x : α) (y : β x) : pr₂ (mk x y) = y := by rfl
+  def pr₁.beta {α : U} {β : α → U} (x : α) (y : β x) : (mk x y)₊1 = x := by rfl
+
+  @[simp]
+  def pr₂.beta {α : U} {β : α → U} (x : α) (y : β x) : (mk x y)₊2 = y := by rfl
 
   -- @[simp]
-  def eta {α : U} {β : α → U} (x : Sigmaₒ α β) : mk (pr₁ x) (pr₂ x) = x := by rfl
+  def eta {α : U} {β : α → U} (x : Sigmaₒ α β) : mk x₊1 x₊2 = x := by rfl
 end Sigmaₒ
 export Sigmaₒ (pr₁ pr₂)
 
