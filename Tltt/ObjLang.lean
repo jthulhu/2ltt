@@ -521,6 +521,7 @@ namespace InductiveDecl
     addAutoBoundImplicits
     addAutoBoundImplicits'
     addLocalVarInfo
+    applyAttributes
     collectUnassignedMVars
     elabBinders
     elabTerm
@@ -568,7 +569,7 @@ namespace InductiveDecl
   def optDeclSig := leading_parser
     many (ppSpace >> (binderIdent <|> bracketedBinder)) >> optType
 
-def ctor := leading_parser
+  def ctor := leading_parser
     atomic (Lean.Parser.optional docComment >> "\n| ")
     >> ppGroup (declModifiers true >> rawIdent >> optDeclSig)
 
@@ -593,50 +594,6 @@ def ctor := leading_parser
   -/
   syntax (name := obj_inductive_decl) modifiers "inductiveₒ " declId sig (" :=" <|> " where")?
                                       ctor* : command
-
-  instance : Repr Modifiers where
-    reprPrec _ _ := .text "<mods>"
-
-  instance : Repr Syntax where
-    reprPrec _ _ := .text "<stx>"
-
-  /-- A constructor branch of an inductive type. -/
-  structure ConstructorView where
-    /-- A syntax reference corresponding to the whole view. -/
-    ref : Syntax
-    /-- Flags, attributes and documentation of the constructor. -/
-    modifiers : Modifiers
-    /-- Fully qualified name, ie. `foo.bar.List.nil`. -/
-    name : Name
-    /-- Name of the constructor, ie. `nil`. See `name`. -/
-    short_name : Name
-    /-- Syntactic explicitly named arguments of the constructor. -/
-    binders : Syntax
-    /-- Syntactic type annotation, ie. everything after `:`. -/
-    type? : Option Syntax
-    deriving Inhabited, Repr
-
-  structure ObjInductiveView where
-    /-- A syntax reference to the original declaration of the inductive type. -/
-    ref : Syntax
-    /-- The syntax object grouping the name and the explicit universes of the declaraiton. -/
-    declId : Syntax
-    /-- Flags, attributes and documentation of the declaration. -/
-    modifiers : Modifiers
-    /-- Fully-qualified name, ie. `foo.bar.MyInductiveType`. -/
-    name : Name
-    /-- Name of the declaration in the local namespace, ie. `MyInductiveType`. See `name`. -/
-    short_name : Name
-    /-- All the explicit universe variables introduced at this declaration, taking into account
-        `universe`-introduced variables. -/
-    levelNames : List Name
-    /-- Syntactic parameters of the declaration. -/
-    binders : Syntax
-    /-- Syntactic type declaration, ie everything after the `:`. -/
-    type? : Option Syntax
-    /-- The constructors of the inductive type. -/
-    constructors : Array ConstructorView
-    deriving Inhabited, Repr
 
   structure ObjConstructor where
     /-- Fully qualified name of the constructor, ie. `foo.bar.List.nil`. -/
@@ -718,9 +675,6 @@ def ctor := leading_parser
     deriving Inhabited
 
 
-  abbrev InductiveTypeMap := HashMap Name ObjInductiveView  
-  initialize obj_inductive_types : IO.Ref InductiveTypeMap ← IO.mkRef {}
-
   def mk_obj_private (n : Name) : Name :=
     -- TODO: replace with `Tltt.ObjLang.Empty to avoid name clashes with things actually defined
     --       in this module. This is currently like this to debug: any "private" declaration
@@ -754,9 +708,9 @@ def ctor := leading_parser
     if modifiers.attrs.size != 0 then
       throwError "invalid use of attributes in constructor declaration"
 
-  private def obj_ind_stx_to_view (modifiers : Modifiers) (decl : Syntax) (declRange : DeclarationRanges)
-                                  (declId : Syntax) (declSig : Syntax) (declCtrs : Syntax)
-                                  : CommandElabM ObjInductiveView := do
+  def obj_ind_stx_to_view (modifiers : Modifiers) (decl : Syntax) (declRange : DeclarationRanges)
+                          (declId : Syntax) (declSig : Syntax) (declCtrs : Syntax)
+                          : CommandElabM ObjInductiveView := do
     check_obj_inductive_modifiers modifiers
     let (binders, type?) := expandOptDeclSig declSig
     let ⟨short_name, name, levelNames⟩ ← expandDeclId declId modifiers
@@ -770,6 +724,8 @@ def ctor := leading_parser
         if ctor_modifiers.docString?.isSome then
           logErrorAt leadingDocComment "duplicate doc string"
         ctor_modifiers := { ctor_modifiers with docString? := Lean.TSyntax.getDocString ⟨leadingDocComment⟩ }
+      -- ensure that constructors can be used in pattern matching
+      ctor_modifiers := { ctor_modifiers with attrs := ctor_modifiers.attrs.push { name := `match_pattern } }
       let short_ctor_name := ctor.getIdAt 3
       trace[Tltt.inductiveₒ.names] "ctor_name = {short_ctor_name}"
       let ctor_name := name ++ short_ctor_name
@@ -788,7 +744,7 @@ def ctor := leading_parser
       }
     return {
       ref := decl
-      name
+      full_name := name
       short_name
       declId
       modifiers
@@ -886,7 +842,7 @@ def ctor := leading_parser
                               (x : Array Expr → Expr → TermElabM α) : TermElabM α := do
     let type ← mk_type_for header
     withLCtx header.lctx header.localInsts <| withRef header.view.ref do
-      Lean.Elab.Term.withAuxDecl header.view.short_name type header.view.name fun indFVar =>
+      Lean.Elab.Term.withAuxDecl header.view.short_name type header.view.full_name fun indFVar =>
         x header.params indFVar
 
   /-- Execute `k` with updated binder information for `xs`. Any `x` that is explicit becomes
@@ -972,17 +928,11 @@ def ctor := leading_parser
     Retrieve the object-level universe in which the inductive type lives. Concretely, if we
     define a value with type `α₁ → α₂ → ⋯ → αₙ → U.{u}`, return `u`.
   -/
-    def get_obj_resulting_universe (ind_type : PartialObjInductiveType) : TermElabM Level :=
+    def get_obj_resulting_universe (ind_type : PartialObjInductiveType) : MetaM Level :=
     forallTelescopeReducing ind_type.type fun _ r => do
       let some u := liftedU? r
         | throwError "unexpected inductive type resulting type{indentExpr r}"
       return u
-      -- let u ← mkFreshLevelMVar
-      -- let pattern := Expr.const ``liftedU [u]
-      -- if ← isDefEq r pattern then
-      --   return u
-      -- else
-      --   throwError "unexpected inductive type resulting type{indentExpr r}"
 
   /--
     Retrieve the Lean-level universe in which the definition lives. Concretely, if we define
@@ -1235,14 +1185,58 @@ def ctor := leading_parser
           return i
       go num_params type ctor_types
 
-  deriving instance Repr for Constructor in
-  deriving instance Repr for InductiveType in
-  deriving instance Repr for Lean.ReducibilityHints in
-  deriving instance Repr for Lean.ConstantVal in
-  deriving instance Repr for Lean.DefinitionVal in
+  def make_constructor_decl (ind_type : ObjInductiveType) (constructor : ObjConstructor)
+                            (params : Array Expr) : TermElabM Unit := do
+    let u ← get_obj_resulting_universe ind_type.toPartialObjInductiveType
+    let constr_val ← forallTelescopeReducing constructor.type fun constr_params _ => do
+      -- `actual_params` is the same as constructor params, except that the arguments
+      -- which are of the type of the inductive type we are defining are unwraped
+      let actual_params ← constr_params.mapM fun param => do
+        let param_type ← inferType param
+        -- By strict positiivty, the only place were the inductive type we are defining
+        -- can appear is as `param_target`.
+        forallTelescopeReducing param_type fun param_args param_target => do
+          let Expr.app (.const ``lift [u_param]) lifted := param_target | return param
+          let Expr.const name level_args := lifted.getAppFn | return param
+          let inner_metau :=
+            Expr.app (.const ``MetaU.mk [u_param])
+            <| mkAppN (.const ind_type.inner_name level_args) lifted.getAppArgs
+          if name == ind_type.full_name then
+            mkAppN param param_args
+            |> mkApp2 (.const ``El.intoU [u_param]) inner_metau
+            |> mkLambdaFVars param_args
+          else
+            return param
+      let inner_metau :=
+        .app (.const ``MetaU.mk [u])
+        <| mkAppN (.const ind_type.inner_name <| ind_type.level_names.map Level.param)
+                  constr_params[:params.size]
+      actual_params
+      |> mkAppN (.const constructor.inner_name <| ind_type.level_names.map Level.param)
+      |> mkApp2 (.const ``El.mk [u]) inner_metau
+      |> mkLambdaFVars constr_params
+    let constr_val ← instantiateMVars constr_val
+    let constr_def_val := {
+      value := constr_val
+      name := constructor.full_name
+      levelParams := ind_type.level_names
+      type := constructor.type
+      safety := .safe
+      hints := .regular <| getMaxHeight (← getEnv) constr_val + 1
+    }
+    let constr_decl := Declaration.defnDecl constr_def_val
+    ensureNoUnassignedMVars constr_decl
+    addDecl constr_decl
+
+  -- deriving instance Repr for Constructor in
+  -- deriving instance Repr for InductiveType in
+  -- deriving instance Repr for Lean.ReducibilityHints in
+  -- deriving instance Repr for Lean.ConstantVal in
+  -- deriving instance Repr for Lean.DefinitionVal in
   def mk_obj_inductive_decl (vars : Array Expr) (view : ObjInductiveView) : TermElabM Unit :=
     withoutSavingRecAppSyntax do
-      let scope_level_names ← getLevelNames -- this is just used for sorting universe variables
+      -- this is just used for sorting universe variables
+      let scope_level_names ← getLevelNames
       -- this is the actual list of *all* the explicit universe variables available in the
       -- current scope, ie those declared with `universe`-style declarations, and those declared
       -- using the `.{...}` syntax.
@@ -1258,9 +1252,9 @@ def ctor := leading_parser
           let type ← mkForallFVars params header.type
           let ctors ← withExplicitToImplicit params (elab_constructor ind_fvar params header)
           let ind_type : PartialObjInductiveType := {
-            full_name := header.view.name
+            full_name := header.view.full_name
             short_name := header.view.short_name
-            inner_name := mk_obj_private header.view.name
+            inner_name := mk_obj_private header.view.full_name
             type
             constructors := ctors
           }
@@ -1316,56 +1310,18 @@ def ctor := leading_parser
             ensureNoUnassignedMVars obj_decl
             addDecl obj_decl
             for constructor in ind_type.constructors do
-              Lean.logInfo m!"{repr constructor.type}"
-              let constr_val ← forallTelescopeReducing constructor.type fun constr_params _ => do
-                -- `actual_params` is the same as constructor params, except that the arguments
-                -- which are of the type of the inductive type we are defining are unwraped
-                let actual_params ← constr_params.mapM fun param => do
-                  let param_type ← inferType param
-                  -- By strict positiivty, the only place were the inductive type we are defining
-                  -- can appear is as `param_target`.
-                  Lean.logInfo m!"{param_type}"
-                  forallTelescopeReducing param_type fun param_args param_target => do
-                    let Expr.app (.const ``lift [u_param]) lifted := param_target | return param
-                    let Expr.const name level_args := lifted.getAppFn | return param
-                    let inner_metau :=
-                      Expr.app (.const ``MetaU.mk [u_param])
-                      <| mkAppN (.const ind_type.inner_name level_args) lifted.getAppArgs
-                    if name == ind_type.full_name then
-                      mkAppN param param_args
-                      |> mkApp2 (.const ``El.intoU [u_param]) inner_metau
-                      |> mkLambdaFVars param_args
-                    else
-                      return param
-                let inner_metau :=
-                  .app (.const ``MetaU.mk [u])
-                  <| mkAppN (.const ind_type.inner_name <| ind_type.level_names.map Level.param)
-                            constr_params[:params.size]
-                Lean.logInfo m!"{constructor.short_name} = {constructor.inner_name} {actual_params}"
-                actual_params
-                |> mkAppN (.const constructor.inner_name <| ind_type.level_names.map Level.param)
-                |> mkApp2 (.const ``El.mk [u]) inner_metau
-                |> mkLambdaFVars constr_params
-              let constr_val ← instantiateMVars constr_val
-              let constr_def_val := {
-                value := constr_val
-                name := constructor.full_name
-                levelParams := ind_type.level_names
-                type := constructor.type
-                safety := .safe
-                hints := .regular <| getMaxHeight (← getEnv) constr_val + 1
-              }
-              let constr_decl := Declaration.defnDecl constr_def_val
-              ensureNoUnassignedMVars constr_decl
-              addDecl constr_decl
+              make_constructor_decl ind_type constructor params
             -- mkAuxConstructions view
         -- todo!
 
   def elab_obj_inductive_view (view : ObjInductiveView) : CommandElabM Unit := do
     let ref := view.ref
-    runTermElabM fun vars => Lean.Elab.Term.withDeclName view.name do withRef ref do
+    runTermElabM fun vars => Lean.Elab.Term.withDeclName view.full_name do withRef ref do
+      applyAttributes view.full_name view.modifiers.attrs
+      for constructor_view in view.constructors do
+        applyAttributes constructor_view.name constructor_view.modifiers.attrs
       mk_obj_inductive_decl vars view
-    register_inductive_type view.name view
+    register_inductive_type view.full_name view
   
   @[command_elab obj_inductive_decl]
   def elab_obj_inductive_decl : CommandElab := fun stx => do
@@ -1387,22 +1343,11 @@ end Tltt.Hott
 namespace examples
 open Tltt.Hott
 
-set_option pp.universes true in
 section
 inductiveₒ Hello (α : U) : U where
   | nil : Hello α
   | cons (hd : α) (tl : Hello α) : Hello α
 end
-
--- #print Hello
-
-section
-universe u
-inductive Oui (α : U.{u}) : Type u where
-  | nil : Oui α
-  | cons (hd : α) (tl : Oui α) : Oui α
-end
-
 
 /-
 inductive_obj Seq (α : U) : U.{u} where
