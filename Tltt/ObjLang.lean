@@ -471,6 +471,7 @@ namespace InductiveDecl
     logErrorAt
     mkApp2
     mkAppN
+    mkFreshId
     mkIdentFrom
     mkLevelParam
     privateHeader
@@ -558,6 +559,7 @@ namespace InductiveDecl
     withAtLeastTransparency
     withLCtx
     withLocalDecl
+    withLocalDecls
     withLocalDeclD
     withNewBinderInfos
     withTransparency
@@ -607,7 +609,14 @@ namespace InductiveDecl
     inner_name : Name
     /-- Type of the constructor, ie. `nil : {α : U.{u}} → List.{u} α` -/
     type : Expr
-    deriving Inhabited, Repr
+  deriving Inhabited, Repr
+
+  def ObjConstructor.type_instanciated_with_parameters (self : ObjConstructor)
+                                                       (params : Array Expr) : MetaM Expr := do
+    let lambda_form ← forallBoundedTelescope self.type params.size fun args goal =>
+      mkLambdaFVars args goal
+    let substitued := mkAppN lambda_form params
+    whnfI substitued
 
   structure PartialObjInductiveType where
     /-- Fully qualified name of the inductive type family, ie. `foo.bar.List`. -/
@@ -620,12 +629,17 @@ namespace InductiveDecl
     constructors : List ObjConstructor
     /-- The type of the family of inductive types, ie `List.{u} : U.{u} → U.{u}`. -/
     type : Expr
-    deriving Inhabited, Repr
+  deriving Inhabited, Repr
 
   structure ObjInductiveType extends PartialObjInductiveType where
     /-- All the explicit universe variables introduced at this declaration. -/
     level_names : List Name
-    deriving Inhabited, Repr
+    /--
+      Number of parameters. This is *not* the same as the arity, which is the number of
+      parameters plus the number of indices.
+    -/
+    number_parameters : Nat
+  deriving Inhabited, Repr
 
   def ObjConstructor.make_inner_decl (constructor : ObjConstructor) (ind_type : ObjInductiveType)
                                      : MetaM Constructor := do
@@ -679,7 +693,7 @@ namespace InductiveDecl
     -- TODO: replace with `Tltt.ObjLang.Empty to avoid name clashes with things actually defined
     --       in this module. This is currently like this to debug: any "private" declaration
     --       actually ends up here, so we can inspect it.
-    .num (privateHeader ++ `Tltt.ObjLang) 0 ++ n
+    .num (privateHeader ++ `Tltt.ObjLang) 0 ++ (n.appendAfter "_priv")
 
   def register_inductive_type (name : Name) (view : ObjInductiveView) : IO Unit :=
     obj_inductive_types.modify fun map => map.insert name view
@@ -928,12 +942,20 @@ namespace InductiveDecl
     Retrieve the object-level universe in which the inductive type lives. Concretely, if we
     define a value with type `α₁ → α₂ → ⋯ → αₙ → U.{u}`, return `u`.
   -/
-    def get_obj_resulting_universe (ind_type : PartialObjInductiveType) : MetaM Level :=
-    forallTelescopeReducing ind_type.type fun _ r => do
-      let some u := liftedU? r
-        | throwError "unexpected inductive type resulting type{indentExpr r}"
-      return u
+  def get_obj_resulting_universe (ind_type : PartialObjInductiveType) : MetaM Level :=
+  forallTelescopeReducing ind_type.type fun _ r => do
+    let some u := liftedU? r
+      | throwError "unexpected inductive type resulting type{indentExpr r}"
+    return u
 
+  
+  def ObjInductiveType.as_const (self : ObjInductiveType) : Expr :=
+    .const self.full_name (self.level_names.map Level.param)
+
+  def ObjInductiveType.as_expr_type (self : ObjInductiveType) (params : Array Expr) : MetaM Expr := do
+    let u ← get_obj_resulting_universe self.toPartialObjInductiveType
+    let cst := self.as_const
+    return .app (.const ``lift [u]) <| mkAppN cst params
   /--
     Retrieve the Lean-level universe in which the definition lives. Concretely, if we define
     a value with type `α₁ → α₂ → ⋯ → αₙ → U.{u}`, return `u+1`.
@@ -1228,6 +1250,154 @@ namespace InductiveDecl
     ensureNoUnassignedMVars constr_decl
     addDecl constr_decl
 
+  def make_recursor (ind_type : ObjInductiveType) (params : Array Expr) : TermElabM Unit := do
+    -- The type of the recursor is
+    --   ∀ ..parameters, ∀ motive, ∀ ..constructors, ∀ ..indices, ∀ x, motive indices x
+    -- where the type of motive is
+    --   ∀ ..indices, ∀ x, U
+    Lean.logInfo m!"params = {params}\nnumber_parameters = {ind_type.number_parameters}"
+    let indices := params[ind_type.number_parameters:]
+    let parameters := params[:ind_type.number_parameters]
+    Lean.logInfo m!"indices = {indices}\nparameters = {parameters}"
+    let motive_level_name ← mkFreshId
+    let motive_level := Level.param motive_level_name
+    let level_names := motive_level_name :: ind_type.level_names
+    let level_vars := level_names.map Level.param
+    let level_vars_for_inner := (.succ motive_level) :: ind_type.level_names.map Level.param
+    let motive_type ←
+      mkForallFVars indices
+      <| .forallE `x (← ind_type.as_expr_type params) (.const ``liftedU [motive_level]) .default
+    let x_level ← get_obj_resulting_universe ind_type.toPartialObjInductiveType
+    withLocalDecl `motive BinderInfo.implicit motive_type fun motive => do
+      withLocalDecl `x BinderInfo.default (← ind_type.as_expr_type params) fun x => do
+        let cons_decls ← ind_type.constructors.toArray.mapM fun constructor => do
+          let constr_type ←
+            constructor.type_instanciated_with_parameters parameters
+          forallTelescopeReducing constr_type fun constr_args target => do
+            let .app (.const ``lift [_]) target := target
+              | throwError "the constructor should produce an object-level type, not{indentExpr target}"
+            let target_args := target.getAppArgs
+            let target_indices := target_args[ind_type.number_parameters:]
+            let partial_constr_value :=
+              mkAppN (.const constructor.full_name (ind_type.level_names.map Level.param))
+                     parameters
+            let constr_value := mkAppN partial_constr_value constr_args
+            -- We add, for each recursive argument of the constructor, an additional induction
+            -- hypothesis.
+            let ih_bounds ← constr_args.filterMapM fun arg => do
+              let arg_type ← inferType arg
+              forallTelescopeReducing arg_type fun args arg_goal => do
+                let .app (.const ``lift [_]) arg_goal_ul := arg_goal | return none
+                let .const type_former _ := arg_goal_ul.getAppFn | return none
+                let indices_args := arg_goal_ul.getAppArgs[ind_type.number_parameters:]
+                if type_former == ind_type.full_name then
+                  let ih_type :=
+                    .app (.const ``lift [motive_level])
+                    <| ← mkForallFVars args
+                    <| .app (mkAppN motive indices_args) arg
+                  return some (
+                    constructor.short_name.appendAfter "_ih",
+                    BinderInfo.default,
+                    fun _ : Array _=> pure ih_type
+                  )
+                else
+                  return none
+            -- The motive is quantified over constructor arguments which are not parameters.
+            -- However, in our expression, the arguments `target_args` might refer free variables
+            -- that appear in the constructor arguments as parameters. Hence, we must quantify
+            -- universally over every argument *except* parameters, then substitute the remaining
+            -- arguments with the actual parameters.
+            let constr_case_type ← withLocalDecls ih_bounds fun ih_vars => do
+              mkForallFVars constr_args
+              <| ← mkForallFVars ih_vars
+              <| .app (.const ``lift [motive_level])
+              <| .app (mkAppN motive target_indices) constr_value
+            let constr_case_type ←
+              mkLambdaFVars parameters constr_case_type
+            let constr_case_type ← whnfI <| mkAppN constr_case_type parameters
+            return (constructor.short_name, BinderInfo.default, fun _ : Array _ => pure constr_case_type)
+        withLocalDecls cons_decls fun constructors => do
+        -- build goal type
+          let mut goal_type := Expr.app (mkAppN motive indices) x
+          goal_type := .app (.const ``lift [motive_level]) goal_type
+          goal_type ← mkForallFVars #[x] goal_type
+          goal_type ← mkForallFVars indices goal_type
+          goal_type ← mkForallFVars constructors goal_type
+          goal_type ← mkForallFVars #[motive] goal_type
+          goal_type ← mkForallFVars parameters goal_type
+          let rec_type ← instantiateMVars goal_type
+          Lean.logInfo m!"rec_type = {rec_type}"
+          -- build goal value
+          let mut goal_value := Expr.const (ind_type.inner_name ++ `rec) level_vars_for_inner
+          goal_value := mkAppN goal_value parameters
+          goal_value := .app goal_value <| ← forallTelescopeReducing motive_type fun args _ => do
+            let truncated_args := args.pop
+            let inner_x_type :=
+              mkAppN (.const ind_type.inner_name <| ind_type.level_names.map Level.param)
+                     (parameters ++ truncated_args)
+            let metau := Expr.app (.const ``MetaU.mk [x_level]) inner_x_type
+            withLocalDecl `x .default inner_x_type fun x => do
+              let unlifted_x := mkApp2 (.const ``El.mk [x_level]) metau x
+              let lifted_motive := Expr.app (.const ``lift [motive_level])
+                                   <| .app (mkAppN motive truncated_args) unlifted_x
+              mkLambdaFVars (truncated_args ++ #[x]) lifted_motive
+          let mut constr_by_name : HashMap Name ObjConstructor := {}
+          for constructor in ind_type.constructors do
+            constr_by_name := constr_by_name.insert constructor.short_name constructor
+          goal_value := mkAppN goal_value <| ← constructors.mapM fun constructor_case => do
+            let constructor := constr_by_name.find! (← constructor_case.fvarId!.getUserName)
+            -- `constructor_case` might be an `fvar` `cons` that looks like
+            --   cons : (hd : α) → (tl : Hello α) → motive tl → motive (Hello.cons hd tl)
+            -- we have three things to do:
+            --  - dewrap the `tl` argument into, say, `tl'`
+            --  - rewrap it before passing it into its induction hypothesis, ie. `motive tl`
+            --    should become `motive (El.mk tl')`
+            --  - change the constructor in the target of the constructor to the underlying,
+            --    private counterpart
+            -- In the end, we will have the following:
+            --   cons : (hd' : α) → (tl' : Hello_priv α) → motive (El.mk tl')
+            --          → motive (El.mk <| Hello_priv.cons hd' tl')
+            -- We start by introducing the "dewraped" version of every argument, ie. `hd'` and
+            -- `tl'`. Then, we modify the target. Finally, we substitue every remaining
+            -- occurrence of `hd` and `tl` in the induction hypothesis + target type by the
+            -- dewraped counterpart.
+            -- In the grand scheme of things, `arity` is the number of arguments of the
+            -- constructor case which are not inductive, that is, it accounts for `hd` and `tl`
+            -- in our previous example.
+            let arity ← forallTelescopeReducing constructor.type fun pars _ => do
+              return pars.size - ind_type.number_parameters
+            let constr_type ← constructor_case.fvarId!.getType
+            forallTelescopeReducing constr_type fun constr_args motive_goal => do
+              let actual_arguments := constr_args[:arity]
+              let induction_hypothesis := constr_args[arity:]
+              return ()
+            return constructor_case
+          goal_value := mkAppN goal_value indices
+          goal_value :=
+            let metau :=
+              .app (.const ``MetaU.mk [x_level])
+              <| mkAppN (.const ind_type.inner_name <| ind_type.level_names.map Level.param)
+                        params
+            .app goal_value <| mkApp2 (.const ``El.intoU [x_level]) metau x
+          goal_value ← mkLambdaFVars #[x] goal_value
+          goal_value ← mkLambdaFVars indices goal_value
+          goal_value ← mkLambdaFVars constructors goal_value
+          goal_value ← mkLambdaFVars #[motive] goal_value
+          goal_value ← mkLambdaFVars parameters goal_value
+          let rec_value ← instantiateMVars goal_value
+          Lean.logInfo m!"rec_value = {rec_value}"
+          let def_decl := {
+            value := rec_value
+            name := ind_type.full_name ++ `recₒ
+            levelParams := level_names
+            type := rec_type
+            hints := .regular <| getMaxHeight (← getEnv) rec_value + 1
+            safety := .safe
+          }
+          let rec_decl := Declaration.defnDecl def_decl
+          ensureNoUnassignedMVars rec_decl
+          addDecl rec_decl
+
   -- deriving instance Repr for Constructor in
   -- deriving instance Repr for InductiveType in
   -- deriving instance Repr for Lean.ReducibilityHints in
@@ -1284,9 +1454,15 @@ namespace InductiveDecl
               match sortDeclLevelParams scope_level_names all_user_level_names used_level_names with
               | .error msg => throwError msg
               | .ok level_params => pure level_params
+            let params ← params.mapM instantiateMVars
             let ind_type ← replace_ind_fvars_with_consts ind_fvar level_params num_vars
                            num_params ind_type
-            let ind_type := { ind_type with level_names := level_params : ObjInductiveType }
+            let ind_type := {
+              ind_type with
+              level_names := level_params
+              number_parameters := num_params
+              : ObjInductiveType
+            }
             
             let inner_ind_type ← ind_type.make_inner_decl
             let inner_decl := Declaration.inductDecl level_params num_params [inner_ind_type] false
@@ -1311,6 +1487,7 @@ namespace InductiveDecl
             addDecl obj_decl
             for constructor in ind_type.constructors do
               make_constructor_decl ind_type constructor params
+            make_recursor ind_type params
             -- mkAuxConstructions view
         -- todo!
 
@@ -1343,11 +1520,24 @@ end Tltt.Hott
 namespace examples
 open Tltt.Hott
 
+set_option pp.explicit true in
 section
 inductiveₒ Hello (α : U) : U where
   | nil : Hello α
   | cons (hd : α) (tl : Hello α) : Hello α
 end
+
+inductive ListS.{u} (α : Type u) : Nat → Type u where
+  | nil : ListS α 0
+  | cons {n : Nat} (hd : α) (tl : ListS α n) : ListS α (n+1)
+
+#check ListS.rec
+
+inductive BTree : Nat → Type _ where
+  | nil : BTree 1
+  | node {n m : Nat} (left : BTree n) (right : BTree m) : BTree (n+m+1)
+
+#check BTree.rec
 
 /-
 inductive_obj Seq (α : U) : U.{u} where
