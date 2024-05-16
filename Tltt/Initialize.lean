@@ -57,6 +57,7 @@ structure ObjInductiveView where
 
 initialize registerTraceClass `Tltt.inductiveₒ
 initialize registerTraceClass `Tltt.inductiveₒ.recₒ (inherited := true)
+initialize registerTraceClass `Tltt.inductiveₒ.constr (inherited := true)
 initialize registerTraceClass `Tltt.inductiveₒ.names (inherited := true)
 initialize registerTraceClass `Tltt.inductiveₒ.universes (inherited := true)
 
