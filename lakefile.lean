@@ -1,15 +1,12 @@
 import Lake
 open Lake DSL
 
-package «tltt» {
-  -- add package configuration options here
-}
+require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "generalize_proofs_bug"
 
-lean_lib «Tltt» {
-  -- add library configuration options here
-}
+package tltt where
+  leanOptions := #[
+    ⟨`autoImplicit, false⟩,
+  ]
 
 @[default_target]
-lean_exe «tltt» {
-  root := `Main
-}
+lean_lib Tltt where
