@@ -24,8 +24,6 @@ open Lean.Meta (
   withLetDecl
 )
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.Tactic.Exhibit
   /-- `exhibitₒ e` will reduce a goal of the form `Σₒ x, P` to a goal `P[x ← e]` -/
   syntax (name := exhibit_obj) "exhibitₒ " term (" as " ident)? : tactic

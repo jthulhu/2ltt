@@ -15,8 +15,6 @@ open Lean.Meta (
   isDefEq
 )
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.Tactic.Rfl
   def _root_.Lean.MVarId.refl_obj (mvarId : MVarId) : MetaM Unit := do
     mvarId.withContext do

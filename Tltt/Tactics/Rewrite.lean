@@ -3,8 +3,6 @@ import Tltt.Tactics.Matching
 import Tltt.Tactics.Builder
 import Tltt.Tactics.Rfl
 
-set_option autoImplicit false
-
 open Lean (
   BinderInfo
   Expr

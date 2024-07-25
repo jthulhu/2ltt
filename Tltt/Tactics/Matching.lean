@@ -7,8 +7,6 @@ open Lean.Meta (
   mkFreshLevelMVar
 )
 
-set_option autoImplicit false
-
 namespace Lean.Expr
   /-- Given `Id.{u} {α} x y`, return `(u, α, x, y)`. -/
   def id? (e : Expr) : MetaM (Option (Level × Expr × Expr × Expr)) := do
