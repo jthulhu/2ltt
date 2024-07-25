@@ -52,7 +52,6 @@ register_option pp.lift : Bool := {
   descr := "(pretty printing) display lift from object-level types to Lean types"
 }
 
--- prefix:max " ↑ " => lift
 prefix:max "^" => lift
 
 @[app_unexpander lift]
@@ -62,12 +61,12 @@ def unexpand_lift : Unexpander
 
 -- @[delab app.lift]
 -- def delab_lift : Delab := do
---   `(lift oui)
-  -- whenNotPPOption (·.get pp.lift.name pp.lift.defValue) do
-  --   let e ← getExpr
-  --   guard <| e.isAppOfArity' ``lift 1
-  --   let arg ← withAppArg delab
-  --   `($arg)
+--   -- `(lift oui)
+--   whenNotPPOption (·.get pp.lift.name pp.lift.defValue) do
+--     let e ← getExpr
+--     guard <| e.isAppOfArity' ``lift 1
+--     let arg ← withAppArg delab
+--     `($arg)
 
 section
 universe u
