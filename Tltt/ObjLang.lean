@@ -612,7 +612,7 @@ namespace InductiveDecl
     }
 
   def liftedU? : Expr → Option Level
-    | .app (.const ``lift [.succ _]) (.const ``U [u])
+    | .app (.const ``lift [_]) (.const ``U [u])
     | .app (.const ``El [.succ _])
            (.app (.app (.const ``El.intoU [.succ (.succ _)])
                        (.const ``Ty [.succ _]))
