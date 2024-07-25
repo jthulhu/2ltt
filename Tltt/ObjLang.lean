@@ -1624,114 +1624,113 @@ end InductiveDecl
 
 end Tltt.Hott
 
-namespace examples
-open Tltt.Hott
+-- namespace examples
+-- open Tltt.Hott
 
-set_option linter.unusedVariables false in
-section
-inductiveₒ MyList (α : U) : U where
-  | nil : MyList α
-  | cons (hd : α) (tl : MyList α) : MyList α
+-- section
+-- inductiveₒ MyList (α : U) : U where
+--   | nil : MyList α
+--   | cons (hd : α) (tl : MyList α) : MyList α
 
-inductiveₒ MyId {α : U} : α → α → U where
-  | refl (x : α) : MyId x x
+-- inductiveₒ MyId {α : U} : α → α → U where
+--   | refl (x : α) : MyId x x
 
-inductiveₒ Natₒ : U where
-  | zero : Natₒ
-  | succ (n : Natₒ) : Natₒ
+-- inductiveₒ Natₒ : U where
+--   | zero : Natₒ
+--   | succ (n : Natₒ) : Natₒ
 
-def Natₒ.plus (n m : Natₒ) : Natₒ :=
-  Natₒ.recₒ n (fun _ n_p_m' => succ n_p_m') m
+-- def Natₒ.plus (n m : Natₒ) : Natₒ :=
+--   Natₒ.recₒ n (fun _ n_p_m' => succ n_p_m') m
 
-inductiveₒ Vecₒ (α : U) : Natₒ → U where
-  | nil : Vecₒ α Natₒ.zero
-  | cons (n : Natₒ) (v : Vecₒ α n) : Vecₒ α (Natₒ.succ n)
+-- inductiveₒ Vecₒ (α : U) : Natₒ → U where
+--   | nil : Vecₒ α Natₒ.zero
+--   | cons (n : Natₒ) (v : Vecₒ α n) : Vecₒ α (Natₒ.succ n)
 
-/-- `BTree n` is a binary tree with `n` nodes. -/
-inductiveₒ BTree : Natₒ → U where
-  | leaf : BTree Natₒ.zero
-  | node (n m : Natₒ) (left : BTree n) (right : BTree m) : BTree (Natₒ.plus (Natₒ.plus n m) (Natₒ.succ Natₒ.zero))
+-- /-- `BTree n` is a binary tree with `n` nodes. -/
+-- inductiveₒ BTree : Natₒ → U where
+--   | leaf : BTree Natₒ.zero
+--   | node (n m : Natₒ) (left : BTree n) (right : BTree m) : BTree (Natₒ.plus (Natₒ.plus n m) (Natₒ.succ Natₒ.zero))
 
-inductiveₒ InfTree : U where
-  | nil : InfTree
-  | node (children : Natₒ → InfTree) : InfTree
-end
+-- inductiveₒ InfTree : U where
+--   | nil : InfTree
+--   | node (children : Natₒ → InfTree) : InfTree
+-- end
 
--- inductive ListS.{u} (α : Type u) : Nat → Type u where
---   | nil : ListS α 0
---   | cons {n : Nat} (hd : α) (tl : ListS α n) : ListS α (n+1)
+-- -- inductive ListS.{u} (α : Type u) : Nat → Type u where
+-- --   | nil : ListS α 0
+-- --   | cons {n : Nat} (hd : α) (tl : ListS α n) : ListS α (n+1)
 
--- inductive BTree : Nat → Type _ where
---   | nil : BTree 1
---   | node {n m : Nat} (left : BTree n) (right : BTree m) : BTree (n+m+1)
+-- -- inductive BTree : Nat → Type _ where
+-- --   | nil : BTree 1
+-- --   | node {n m : Nat} (left : BTree n) (right : BTree m) : BTree (n+m+1)
 
-/-
-inductive_obj Seq (α : U) : U.{u} where
-                            ^^^^^ this must be replaced by `Type u`
-  | nil : Seq α
-          ^^^ this must be replaced by `Inner`
-  | cons (hd : α) (tl : Seq α) : Seq α
-                        ^^^      ^^^
-                        these must be replaced by `Inner`
--/
+-- /-
+-- inductive_obj Seq (α : U) : U.{u} where
+--                             ^^^^^ this must be replaced by `Type u`
+--   | nil : Seq α
+--           ^^^ this must be replaced by `Inner`
+--   | cons (hd : α) (tl : Seq α) : Seq α
+--                         ^^^      ^^^
+--                         these must be replaced by `Inner`
+-- -/
 
-private inductive Seq.Inner (α : U) : Type _ where
-  | nil : Inner α
-  | cons (hd : α) (tl : Inner α) : Inner α
+-- private inductive Seq.Inner (α : U) : Type _ where
+--   | nil : Inner α
+--   | cons (hd : α) (tl : Inner α) : Inner α
 
-def Seq.{u₁} (α : U.{u₁}) : U.{u₁} :=
-  U.fromType <| Seq.Inner α
+-- def Seq.{u₁} (α : U.{u₁}) : U.{u₁} :=
+--   U.fromType <| Seq.Inner α
 
-namespace Seq
-  @[match_pattern]
-  def nil.{u} {α : U.{u}} : Seq.{u} α :=
-    El.mk.{u} Inner.nil.{u}
+-- namespace Seq
+--   @[match_pattern]
+--   def nil.{u} {α : U.{u}} : Seq.{u} α :=
+--     El.mk.{u} Inner.nil.{u}
 
-  @[match_pattern]
-  def cons.{u} {α : U.{u}} (hd : α) (tl : Seq.{u} α) : Seq.{u} α :=
-    El.mk.{u} <| Inner.cons.{u} hd (El.intoU.{u} tl)
+--   @[match_pattern]
+--   def cons.{u} {α : U.{u}} (hd : α) (tl : Seq.{u} α) : Seq.{u} α :=
+--     El.mk.{u} <| Inner.cons.{u} hd (El.intoU.{u} tl)
 
-  protected def recₒ.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
-                     (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl)) (x : Seq.{u₁} α)
-                     : motive x :=
-    @Inner.rec.{u+1, u₁} α (fun x : Inner α => motive (El.mk x)) nil_case (fun hd tl tl_ih => cons_case hd (El.mk tl) tl_ih) x.intoU
+--   protected def recₒ.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--                      (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl)) (x : Seq.{u₁} α)
+--                      : motive x :=
+--     @Inner.rec.{u+1, u₁} α (fun x : Inner α => motive (El.mk x)) nil_case (fun hd tl tl_ih => cons_case hd (El.mk tl) tl_ih) x.intoU
 
-  @[simp]
-  protected def recₒ.beta.nil.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
-                             (const_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl))
-                             : @Seq.recₒ.{u, u₁} α motive nil_case const_case nil = nil_case :=
-    rfl
+--   @[simp]
+--   protected def recₒ.beta.nil.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--                              (const_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl))
+--                              : @Seq.recₒ.{u, u₁} α motive nil_case const_case nil = nil_case :=
+--     rfl
 
-  @[simp]
-  protected def recₒ.beta.cons.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
-                              (const_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl))
-                              (hd : α) (tl : Seq.{u₁} α)
-                              : @Seq.recₒ.{u, u₁} α motive nil_case const_case (cons hd tl)
-                                = const_case hd tl (Seq.recₒ (motive := motive) nil_case const_case tl) :=
-    rfl
+--   @[simp]
+--   protected def recₒ.beta.cons.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--                               (const_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl))
+--                               (hd : α) (tl : Seq.{u₁} α)
+--                               : @Seq.recₒ.{u, u₁} α motive nil_case const_case (cons hd tl)
+--                                 = const_case hd tl (Seq.recₒ (motive := motive) nil_case const_case tl) :=
+--     rfl
 
-  protected def casesOnₒ.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
-                                  (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
-                                  (x : Seq.{u₁} α) : motive x :=
-    @Seq.recₒ α motive nil_case (fun hd tl _ => cons_case hd tl) x
+--   protected def casesOnₒ.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--                                   (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
+--                                   (x : Seq.{u₁} α) : motive x :=
+--     @Seq.recₒ α motive nil_case (fun hd tl _ => cons_case hd tl) x
 
-  @[simp]
-  protected def casesOnₒ.beta.nil.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}}
-                                           (nil_case : motive nil)
-                                           (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
-                                           : @Seq.casesOnₒ.{u, u₁} α motive nil_case cons_case nil
-                                             = nil_case :=
-    rfl
+--   @[simp]
+--   protected def casesOnₒ.beta.nil.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}}
+--                                            (nil_case : motive nil)
+--                                            (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
+--                                            : @Seq.casesOnₒ.{u, u₁} α motive nil_case cons_case nil
+--                                              = nil_case :=
+--     rfl
 
-  @[simp]
-  protected def casesOnₒ.beta.cons.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}}
-                                            (nil_case : motive nil)
-                                            (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
-                                            (hd : α) (tl : Seq.{u₁} α)
-                                            : @Seq.casesOnₒ.{u, u₁} α motive nil_case cons_case (cons hd tl)
-                                              = cons_case hd tl :=
-    rfl
-end Seq
+--   @[simp]
+--   protected def casesOnₒ.beta.cons.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}}
+--                                             (nil_case : motive nil)
+--                                             (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
+--                                             (hd : α) (tl : Seq.{u₁} α)
+--                                             : @Seq.casesOnₒ.{u, u₁} α motive nil_case cons_case (cons hd tl)
+--                                               = cons_case hd tl :=
+--     rfl
+-- end Seq
 
-end examples
+-- end examples
 end
