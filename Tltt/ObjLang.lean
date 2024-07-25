@@ -109,8 +109,8 @@ def Pi (α : U) (β : α → U) : U :=
   U.fromType ((a : α) → β a)
 
 namespace Pi
-  section
   variable {α : U} {β : α → U}
+
   def lam (f : (a : α) → β a) : Pi α β :=
     El.mk f
 
@@ -137,7 +137,13 @@ namespace Pi
 
   instance : CoeFun (Pi α β) (fun _ => (x : α) → β x) where
     coe := app
-  end
+
+  def funext (f g : Pi α β) (p : ∀ x : α, f x = g x) : f = g := by
+    induction f
+    induction g
+    congr
+    funext
+    apply p
 end Pi
 
 syntax "Πₒ " ident " : " term ", " term : term
