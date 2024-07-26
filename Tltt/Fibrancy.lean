@@ -18,15 +18,14 @@ noncomputable section
 namespace Tltt.Fibrancy
 open Hott
 
-def fibrant_of_eqv_fibrant {α β : Type*} (α_is_fib : IsFibrantWeak α)
-                           (α_eqv_β : α ≃ β) : IsFibrantWeak β := by
+def fibrant_of_eqv_fibrant {α β : Type*} (α_is_fib : IsFibrantWeak α) (α_eqv_β : α ≃ β)
+                           : IsFibrantWeak β := by
   exists α_is_fib.obj_type
   calc
     _ ≃ α := α_is_fib.fibrancy
     _ ≃ _ := α_eqv_β
 
-def prod_is_fibrant {α₁ α₂ : Type*} (α₁_is_fib : IsFibrantWeak α₁)
-                    (α₂_is_fib : IsFibrantWeak α₂)
+def prod_is_fibrant {α₁ α₂ : Type*} (α₁_is_fib : IsFibrantWeak α₁) (α₂_is_fib : IsFibrantWeak α₂)
                     : IsFibrantWeak (α₁ × α₂) := by
   apply fibrant_of_eqv_fibrant (α := Σ _ : α₁, α₂)
   · apply sigma_fibrant
