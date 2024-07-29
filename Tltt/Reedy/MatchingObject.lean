@@ -2,8 +2,10 @@ import Mathlib.Tactic.TypeStar
 import Tltt.DirectCategories
 import Tltt.Fibrancy
 import Tltt.Reedy.ReedyPresheaf
+import Tltt.Reedy.SkeletalFunctor
 import Misc
 
+noncomputable section
 namespace Tltt.ReedyFibrancy
 open CategoryTheory
 open Limits (Cone IsLimit)
@@ -70,8 +72,109 @@ def border_inc_yoneda (j : J) : NatTrans (∂j) (𝐲j) where
     dsimp only at f g k_neq_j
     simp
 
-def MatchObj (j : J) (F : Psh (Below J (rk j))) : Type _ :=
-  NatTrans (restrict₃ (∂j)) F
+section
+  variable (i : J) (X : Psh (Below J (rk i)))
+
+  def MatchObj.cone : Cone (MatchingObject.functor i X) where
+    pt := NatTrans (restrict₃ (∂i)) X
+    π := {
+      app := by
+        intro ⟨_, f, i_neq⟩
+        simp [under.inclusion]
+        intro η
+        apply η.app _
+        simp [restrict₃, border]
+        exists f
+        intro
+        apply i_neq
+        apply Eq.symm
+        assumption
+      naturality := by
+        intro ⟨j, f, i_neq_j⟩ ⟨k, g, i_neq_k⟩ ⟨h, p⟩
+        simp at h p ⊢
+        funext η
+        simp [under.inclusion]
+        let j' : Below J (rk i) := .mk j <| by
+          apply Nat.lt_of_le_of_ne
+          · apply leq_of_map
+            assumption
+          · intro
+            apply i_neq_j
+            apply Eq.symm
+            apply eq_of_map_of_rk_eq_rk <;> assumption
+        let k' : Below J (rk i) := .mk k <| by
+          apply Nat.lt_of_le_of_ne
+          · apply leq_of_map
+            assumption
+          · intro
+            apply i_neq_k
+            apply Eq.symm
+            apply eq_of_map_of_rk_eq_rk <;> assumption
+        have := η.naturality (X := .op j') (Y := .op k') h.op
+        dsimp [restrict₃, border, Below.forget] at this
+        rw [← p]
+        exact congrFun this ⟨f, _⟩
+    }
+
+  def MatchObj : Type _ :=
+    MatchObj.cone i X |>.pt
+
+  def MatchObj.cone_is_limit : IsLimit (cone i X) where
+    lift ψ x := {
+      app := by
+        intro ⟨j⟩
+        simp [restrict₃, border]
+        intro ⟨f, j_neq_i⟩
+        have i_neq_j := Ne.symm j_neq_i
+        have := ψ.π.app ⟨_, f, i_neq_j⟩ x
+        simp [under.inclusion] at this
+        exact this
+      naturality := by
+        intro ⟨j⟩ ⟨k⟩ ⟨f⟩
+        simp [restrict₃, border, Below.forget] at f ⊢
+        funext ⟨g, j_neq_i⟩
+        have i_neq_j := Ne.symm j_neq_i
+        let j' : under i := .mk j.point <| by
+          exists g
+        let k' : under i := .mk k.point <| by
+          exists f ≫ g
+          intro i_eq_k
+          apply Nat.lt_irrefl (rk i)
+          conv => lhs; rw [i_eq_k]
+          apply k.rank_is_lt
+        let f' : k' ⟶ j' := .mk f <| by
+          rfl
+        have := ψ.π.naturality (X := .op j') (Y := .op k') f'.op
+        simp at this ⊢
+        exact congrFun this x
+    }
+    fac ψ := by
+      intro
+      funext
+      rfl
+    uniq ψ := by
+      intro m e
+      funext x
+      simp
+      apply NatTrans.ext
+      funext ⟨j⟩ g
+      simp [restrict₃, border, Below.forget] at g
+      let j' : under i := .mk j.point <| by
+        exists g
+        apply Ne.symm
+        exact g.property
+      have := e (.op j')
+      simp [cone] at this
+      apply congrFun this
+
+  def match_obj_eqv (i : J) (F : Psh (Below J (rk i)))
+                    : MatchObj i F ≃ MatchingObject i F := by
+    -- Lemma 4.5 of the article "Two-level type theory and applications"
+    apply toEquiv
+    apply IsLimit.conePointUniqueUpToIso
+    · apply MatchObj.cone_is_limit
+    · apply MatchingObject.limit_cone _ _ |>.isLimit
+end
 
 def MatchObj.canonical (F : Psh J) (j : J) : F.obj (.op j) → MatchObj j (restrict₃ F) := by
   intro fj
@@ -80,17 +183,8 @@ def MatchObj.canonical (F : Psh J) (j : J) : F.obj (.op j) → MatchObj j (restr
   apply restrict₆
   exact bj_to_yj ≫ yj_to_F
 
-def match_obj_eqv (i : J) (F : Psh (Below J (rk i)))
-                  : MatchObj i F ≃ MatchingObject i F := by
-  -- Lemma 4.5 of the article "Two-level type theory and applications"
-  sorry
-
 section
   variable {n : Nat} (X : ReedyPresheaf J n)
-
-  def nat_trans_fibrant (A : Psh (Below J n)) : IsFibrantWeak (NatTrans A X.presheaf) := by
-    -- this is a not so easy theorem
-    sorry
 
   def limit_is_fibrant (C : Cone X.presheaf) (p : IsLimit C) : IsFibrantWeak C.pt := by
     apply fibrant_of_eqv_fibrant (α := NatTrans (constPUnitFunctor _) X.presheaf)
@@ -114,3 +208,4 @@ section
 end
 
 end Tltt.ReedyFibrancy
+end
