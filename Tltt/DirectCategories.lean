@@ -52,7 +52,7 @@ namespace OfRank
     coe := OfRank.in_own_layer i
 
   @[simp]
-  def in_own_layer_point (i : C) : (in_own_layer i).point = i := by
+  theorem in_own_layer_point (i : C) : (in_own_layer i).point = i := by
     rfl
 
   instance [DecidableEq C] (n : Nat) : DecidableEq (OfRank C n) := by
@@ -327,7 +327,7 @@ abbrev MatchingObject.functor {D : Type*} [DirectCategory D] (i : D)
   (under.inclusion D i).op ⋙ X
 
 def MatchingObject.limit_cone {D : Type*} [DirectCategory D] (i : D)
-                                  (X : Psh (Below D (rk i))) : LimitCone (functor i X) :=
+                              (X : Psh (Below D (rk i))) : LimitCone (functor i X) :=
   getLimitCone <| MatchingObject.functor i X
 
 def MatchingObject {D : Type*} [DirectCategory D] (i : D) (X : Psh (Below D (rk i))) : Type _ :=
@@ -336,7 +336,6 @@ def MatchingObject {D : Type*} [DirectCategory D] (i : D) (X : Psh (Below D (rk 
 section Restrictions
 variable {D : Type*} [DirectCategory D] {n : ℕ}
 
--- @[simp]
 def restrict₁ (F : Psh (Below D (n+1))) : Psh (Below D n) :=
   (Below.inclusion _ _).op ⋙ F
 
@@ -365,6 +364,10 @@ def restrict₃.beta (F : Psh D) (x : Below D n) : (restrict₃ F).obj (.op x) =
 -- @[simp]
 def restrict₄ (i : OfRank D n) (F : Psh (Below D (n+1))) : Psh (Below D (rk i.point + 1)) :=
   (Below.forget' (i := i.as_below)).op ⋙ F
+
+@[simp]
+theorem restrict₄.beta (i : D) (F : Psh (Below D (rk i + 1))) : restrict₄ ⟨i, rfl⟩ F = F := by
+  rfl
 
 def func_of_rk_eq (i : D) (p : rk i = n) : Below D (rk i) ⥤ Below D n := by
   induction p
