@@ -88,7 +88,7 @@ namespace DotExpansion
   syntax:max term "₊" ident : term
 
   elab_rules : term
-    | `(term| $e:term₊$fn:ident) => do
+    | `($e:term₊$fn:ident) => do
       let e_term ← Lean.Elab.Term.elabTerm e none
       let some (_, e_type) ← e_term.inferObjType?
         | throwError "{indentExpr e_term}\nis not an object-level term"
@@ -102,10 +102,9 @@ namespace DotExpansion
       let type_name ← extract_type (← instantiateMVars e_type)
       let .ident info rawVal name preresolved := fn.raw
         | throwError "it doesn't work this way, billy...?"
-      let actual_ident := ⟨.ident info  rawVal (type_name ++ name) preresolved⟩
+      let actual_ident := ⟨.ident info rawVal (type_name ++ name) preresolved⟩
       let new_stx ← `($actual_ident $e)
       Lean.Elab.Term.elabTerm new_stx none
-      -- mkAppM (type_name ++ name) #[e_term]
 end DotExpansion
 
 namespace Intro
