@@ -533,7 +533,7 @@ namespace InductiveDecl
     - `unsafe` declarations are not supported
     - `mutual` declarations are not supported
   -/
-  syntax (name := obj_inductive_decl) modifiers "inductiveₒ " declId sig (" :=" <|> " where")?
+  syntax (name := obj_inductive_decl) modifiers " inductiveₒ " declId sig (" :=" <|> " where")?
                                       ctor* : command
 
   structure ObjConstructor where
