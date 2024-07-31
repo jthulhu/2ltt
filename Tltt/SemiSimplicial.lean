@@ -206,7 +206,7 @@ def finite_reedy_presheaf_is_fibrant (D : Type*) [DirectCategory D] [DecidableEq
     · apply Equiv.symm
       apply rdpsh_eqv_compact
 
-def SemiSimplicialType (n : ℕ) : U :=
+def SemiSimplicialType (n : ℕ) : Typeₒ :=
   finite_reedy_presheaf_is_fibrant SemiSimplexCat n SemiSimplexCat.finite_rank |>.obj_type
 
 end Tltt

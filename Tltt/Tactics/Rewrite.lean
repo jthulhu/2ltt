@@ -75,7 +75,7 @@ namespace Tltt.Hott.Tactic.Rewrite
           throwTacticEx `rewriteₒ mvarId m!"did not find instance of the pattern in the target expresion{indentExpr lhs}"
         let eNewₒ := e_abstₒ.instantiate1 rhs
         let eNewₒ ← instantiateMVars eNewₒ
-        let e_objeq_eabst ← mkId (.succ e_level) (.const ``U [e_level]) e_obj e_abstₒ
+        let e_objeq_eabst ← mkId (.succ e_level) (.const ``Typeₒ [e_level]) e_obj e_abstₒ
         let liftedα ← α.lift
         let motive := Expr.lam `_a liftedα e_objeq_eabst BinderInfo.default
         unless ← isTypeCorrect motive do
@@ -122,7 +122,7 @@ namespace Tltt.Hott.Tactic.Rewrite
       let some (u, targetₒ) ← target.lift?
         | throwTacticEx `rewriteₒ mvarId m!"target {indentExpr target}\nis not an object-level type"
       let targetNewₒ ← targetNew.objType!
-      let eq ← mkId (.succ u) (.const ``U [u]) targetₒ targetNewₒ
+      let eq ← mkId (.succ u) (.const ``Typeₒ [u]) targetₒ targetNewₒ
       let newProof ← mkExpectedObjTypeHint eqProof eq
       let val := mkAppN (.const ``Id.mpr [u]) #[targetₒ, targetNewₒ, newProof, mvarNew]
       mvarId.assign val

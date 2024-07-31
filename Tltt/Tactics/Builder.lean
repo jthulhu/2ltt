@@ -55,7 +55,7 @@ def mkIdSubst (motive h idh : Expr) : MetaM Expr := do
       let some (_, U) ← motiveTargetType.lift?
         | throwError "Motive target type{indentExpr motiveTargetType}\nis not a object-level universe type"
       let u₂ ← mkFreshLevelMVar
-      let pattern := .const ``U [u₂]
+      let pattern := .const ``Typeₒ [u₂]
       if !(← isDefEq U pattern) then
         throwError "Motive target type{indentExpr motiveTargetType}\nis not a object-level universe type"
       return mkAppN (.const ``Id.subst [u₁, u₂]) #[α, motive, lhs, rhs, idh, h]

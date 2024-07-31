@@ -9,7 +9,7 @@ open CategoryTheory
 def is_fibration_weak {α β : Type*} (f : α → β) : Type _ :=
   ∀ y : β, IsFibrantWeak { x : α // f x = y }
 
-abbrev tot {α : Type*} (β : α → U) : Σ γ : Type _, γ → α :=
+abbrev tot {α : Type*} (β : α → Typeₒ) : Σ γ : Type _, γ → α :=
   ⟨Σ a, β a, Sigma.fst⟩
 
 def is_fibration_strict {α β : Type _} (f : α → β) : Type _ :=

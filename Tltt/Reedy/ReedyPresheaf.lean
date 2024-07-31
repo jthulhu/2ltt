@@ -173,13 +173,13 @@ structure CompactLRP (D : Type u₁) [DirectCategory.{u₁, max u₁ u₂} D] (n
   X : ReedyPresheaf D n
   glueing : ∀ i : OfRank D n,
             MatchingObject i.point (restrict₅ i X.presheaf)
-            → U.{max u₁ u₂}
+            → Typeₒ.{max u₁ u₂}
 
 universe u₁ u₂ in
 abbrev SigmaCompactLRP (D : Type u₁) [DirectCategory.{u₁, max u₁ u₂} D] (n : Nat) :=
   Σ X : ReedyPresheaf D n,
   ∀ i : OfRank D n,
-  MatchingObject i.point (restrict₅ i X.presheaf) → U.{max u₁ u₂}
+  MatchingObject i.point (restrict₅ i X.presheaf) → Typeₒ.{max u₁ u₂}
 
 namespace CompactLRP
   universe u₁ u₂

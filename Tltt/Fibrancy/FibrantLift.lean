@@ -4,7 +4,7 @@ import Misc.Rewrite
 namespace Tltt.Fibrancy
 open Hott
 
-instance lift_is_fibrant (α : U) : IsFibrantStrict α where
+instance lift_is_fibrant (α : Typeₒ) : IsFibrantStrict α where
   obj_type := α
   fibrancy := rfl
 
