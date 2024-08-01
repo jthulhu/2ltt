@@ -13,8 +13,8 @@ namespace Tltt.Hott
 
 -- Universe setup
 --
--- The object language universe hierarchy is `U.{i}`. If `α : ^U.{i}`, `^α : Type i`, where `^` is
--- the lifting operator.
+-- The object language universe hierarchy is `Typeₒ u`. If `α : ^(Typeₒ u)`, `^α : Type i`, where
+-- `^` is the lifting operator.
 --
 -- `MetaU`, `Ty` and `El` are implementation details required to bootstrap this. For coherency
 -- concerns, none outside this module should be able to access the private definitions given
