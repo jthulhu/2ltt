@@ -23,11 +23,12 @@ namespace Tltt.Hott
 -- In this module should only be present the definitions which require access to these private
 -- defintions. Otherwise, define them in the Hott module.
 
+@[pp_using_anonymous_constructor]
 structure MetaU.{i} : Type (i+1) where
   private mk ::
   private intoType : Type i
 
-def Ty.{i} : MetaU.{i+1} :=
+private def Ty.{i} : MetaU.{i+1} :=
   MetaU.mk MetaU.{i}
 
 @[pp_using_anonymous_constructor]
@@ -181,13 +182,13 @@ namespace Sigmaₒ
   def mk {α : Typeₒ} {β : α → Typeₒ} (x : α) (y : β x) : Sigmaₒ α β :=
     El.mk (Sigma.mk x y)
 
-  @[match_pattern, inline]
+  @[inline]
   def pr₁ {α : Typeₒ} {β : α → Typeₒ} (x : Sigmaₒ α β) : α :=
     x.intoU.1
 
   postfix:max "₊1" => pr₁
 
-  @[match_pattern, inline]
+  @[inline]
   def pr₂ {α : Typeₒ} {β : α → Typeₒ} (x : Sigmaₒ α β) : β (pr₁ x) :=
     x.intoU.2
 
