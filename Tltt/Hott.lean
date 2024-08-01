@@ -12,6 +12,40 @@ noncomputable section
 
 namespace Tltt.Hott
 
+-- Boolean type
+
+inductiveₒ Boolₒ : Typeₒ where
+  | trueₒ : Boolₒ
+  | falseₒ : Boolₒ
+export Boolₒ (trueₒ falseₒ)
+
+
+-- Coproduct
+
+inductiveₒ Sumₒ (α : Typeₒ) (β : Typeₒ) : Typeₒ where
+  | inlₒ (a : α) : Sumₒ α β
+  | inrₒ (b : β) : Sumₒ α β
+export Sumₒ (inlₒ inrₒ)
+
+infixr:30 " ⊕ₒ " => Sumₒ
+
+@[app_unexpander Sumₒ]
+def unexpand_plus : Unexpander
+  | `($_ $α $β) => ``($α ⊕ₒ $β)
+  | _ => throw ()
+
+-- Product
+
+def Prodₒ (α : Typeₒ) (β : Typeₒ) : Typeₒ :=
+  Sigmaₒ α (fun _ => β)
+
+infixr:35 " ×ₒ " => Prodₒ
+
+@[app_unexpander Prodₒ]
+def unexpand_times : Unexpander
+  | `($_ $α $β) => ``($α ×ₒ $β)
+  | _ => throw ()
+
 def Pi.pi_eqv_obj_pi {α : Typeₒ} {β : α → Typeₒ} : (∀ x, β x) ≃ Πₒ x : α, β x where
   toFun := Pi.lam
   invFun := Pi.app
