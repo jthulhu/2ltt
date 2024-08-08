@@ -72,7 +72,7 @@ def Sigmaₒ.sigma_eqv_obj_sigma {α : Typeₒ} {β : α → Typeₒ} : (Σ x : 
   Universe-polymorph lifting: this embeds a type living in a universe in a higher universe. The
   resulting type is equivalent to the original one, which is shown in `PLiftₒ.equiv_inner`.
 -/
-inductiveₒ PLiftₒ.{u₁, u₂} (α : Typeₒ.{u₁}) : Typeₒ.{max u₁ u₂} where
+inductiveₒ PLiftₒ.{u₁, u₂} (α : Typeₒ u₁) : Typeₒ max u₁ u₂ where
   | up (down : α) : PLiftₒ α
 
 namespace PLiftₒ
@@ -270,7 +270,7 @@ end Id
 
 -- Homotopies
 
-abbrev Homotopy.{u, v} {α : Typeₒ.{u}} {P : α → Typeₒ.{v}} (f g : (x : α) →ₒ P x) : Typeₒ.{max u v} :=
+abbrev Homotopy.{u, v} {α : Typeₒ u} {P : α → Typeₒ v} (f g : (x : α) →ₒ P x) : Typeₒ max u v :=
   Πₒ x : α, f x =ₒ g x
 
 infix:30 " ~ " => Homotopy
@@ -738,7 +738,7 @@ namespace Funₒ
     rfl'
 end Funₒ
 
-inductiveₒ Unitₒ.{u} : Typeₒ.{u} where
+inductiveₒ Unitₒ.{u} : Typeₒ u where
   | point : Unitₒ
 
 namespace Unitₒ
@@ -900,7 +900,7 @@ namespace Sigmaₒ
     apply Equivalence.is_linv (β_eqv_β' x) y
   end Sigmaₒ
 
-def Typeₒ.is_contractible.path_is_refl.{u} {α : Typeₒ.{u}} {x : α} (ctr : α₊is_contractible) (p : x =ₒ x)
+def Typeₒ.is_contractible.path_is_refl.{u} {α : Typeₒ u} {x : α} (ctr : α₊is_contractible) (p : x =ₒ x)
                                        : p =ₒ Id.refl x := by
   let ⟪f, g, gf_id, _⟫ := contr_eqv_unit.{u, u} ctr
   apply Funₒ.linv_cancellation (Pi.lam f₊ap)
@@ -911,7 +911,7 @@ def Typeₒ.is_contractible.path_is_refl.{u} {α : Typeₒ.{u}} {x : α} (ctr : 
 namespace Singleton
   section Lemma_3_11_9
     universe u
-    variable {α : Typeₒ.{u}} {β : α → Typeₒ.{u}}
+    variable {α : Typeₒ u} {β : α → Typeₒ u}
     def sum_is_base_if_contr (p : Πₒ x : α, (β x)₊is_contractible) : (Σₒ x : α, β x) ≃ₒ α := by
       exhibitₒ Pi.lam pr₁
       apply Funₒ.qinv_to_equiv
@@ -1003,7 +1003,7 @@ namespace Equivalence
 
   section
     universe u
-    variable {α : Typeₒ.{u}} {β β' : α → Typeₒ.{u}} (f : (x : α) →ₒ (β x →ₒ β' x))
+    variable {α : Typeₒ u} {β β' : α → Typeₒ u} (f : (x : α) →ₒ (β x →ₒ β' x))
 
     -- Theorem 4.7.6
     def fiber_total_is_fiber (x : α) (v : β' x): Funₒ.fiber (total f) ⟪x, v⟫ ≃ₒ Funₒ.fiber (f x) v := by
@@ -1102,7 +1102,7 @@ end Univalence
 
 section Lemma_4_8_1
   universe u₁ u₂
-  variable {α : Typeₒ.{u₁}} {β : α → Typeₒ.{u₂}} {a : α}
+  variable {α : Typeₒ u₁} {β : α → Typeₒ u₂} {a : α}
   def fiber_pr₁_eqv_beta : @Funₒ.fiber (Sigmaₒ α β) _ (Pi.lam pr₁) a ≃ₒ β a := by
     exhibitₒ by
       introₒ fib
@@ -1131,7 +1131,7 @@ namespace Extensionality
   --   let p := Univalence.eqv_to_id
   section Lemma_4_9_2
     universe u₁ u₂
-    variable {α β : Typeₒ.{u₁}} {γ : Typeₒ.{u₂}}
+    variable {α β : Typeₒ u₁} {γ : Typeₒ u₂}
     variable (e : α ≃ₒ β)
     def lift_equiv_fun : (γ →ₒ α) ≃ₒ (γ →ₒ β) := by
       have underlying (p : α =ₒ β) : (γ →ₒ α) ≃ₒ (γ →ₒ β) := by
@@ -1163,7 +1163,7 @@ namespace Extensionality
 
   section Corollary_4_9_3
     universe u
-    variable {α : Typeₒ.{u}} {β : α → Typeₒ.{u}} (p : Πₒ x : α, Typeₒ.is_contractible (β x))
+    variable {α : Typeₒ u} {β : α → Typeₒ u} (p : Πₒ x : α, Typeₒ.is_contractible (β x))
 
     def pr₁_eqv : @pr₁ α β |> Pi.lam |> Funₒ.is_equiv := by
       apply Funₒ.qinv_to_ishae
@@ -1226,7 +1226,7 @@ end WeakChoice
 namespace Extensionality
   section Theorem_4_9_4
     universe u
-    variable {α : Typeₒ.{u}} {β : α → Typeₒ.{u}} (p : Πₒ x : α, (β x)₊is_contractible)
+    variable {α : Typeₒ u} {β : α → Typeₒ u} (p : Πₒ x : α, (β x)₊is_contractible)
 
     def weak_fun_ext : Typeₒ.is_contractible (Πₒ x : α, β x) := by
       let f := pr₁ <| into_sum_of_contractible_is_into_base (α := α) (β := β) p
@@ -1255,7 +1255,7 @@ namespace Extensionality
 
   section Theorem_4_9_5
     universe u
-    variable {α : Typeₒ.{u}} {β : α → Typeₒ.{u}} {f g : Pi α β}
+    variable {α : Typeₒ u} {β : α → Typeₒ u} {f g : Pi α β}
 
     def happly_is_equiv : Funₒ.is_equiv (Pi.lam <| Funₒ.happly (f := f) (g := g)) := by
       apply Equivalence.equiv_if_total_equiv (funₒ g => Pi.lam <| Funₒ.happly (f := f) (g := g))

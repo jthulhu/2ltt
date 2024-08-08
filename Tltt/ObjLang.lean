@@ -43,8 +43,8 @@ open Lean.Parser in
 def univ_parser : Parser :=
   checkWsBefore "" >> checkPrec leadPrec >> checkColGt >> levelParser maxPrec
 
-local syntax " Typeₒ " univ_parser : term
-local syntax " Typeₒ " : term
+syntax " Typeₒ " univ_parser : term
+syntax " Typeₒ " : term
 elab_rules : term
   | `(Typeₒ) => do
     let u ← Lean.Meta.mkFreshLevelMVar
