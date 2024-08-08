@@ -113,13 +113,31 @@ namespace Natₒ
     ofNat := ofNat n
 
   def add (n : Natₒ) (m : Natₒ) : Natₒ :=
-    Natₒ.recₒ m (fun _ k => Natₒ.succ k) n
-
-  def mul (n : Natₒ) (m : Natₒ) : Natₒ :=
-    Natₒ.recₒ Natₒ.zero (fun _ k => add k m) n
+    recₒ n (fun _ k => succ k) m
 
   instance : Add Natₒ where
     add := add
+
+  @[simp]
+  theorem add_zero (n : Natₒ) : n + zero = n :=
+    rfl
+
+  @[simp]
+  theorem add_succ (n m : Natₒ) : n + (succ m) = succ (n + m) :=
+    rfl
+
+  def add_assoc (n m k : Natₒ) : (n + m) + k =ₒ n + (m + k) := by
+    refine recₒ (motive := fun k => (n + m) + k =ₒ n + (m + k)) ?zero ?succ k
+    case zero =>
+      simp
+      rflₒ
+    case succ =>
+      intro k ih
+      simp at ih ⊢
+      rwₒ [ih]
+
+  def mul (n : Natₒ) (m : Natₒ) : Natₒ :=
+    Natₒ.recₒ Natₒ.zero (fun _ k => add k m) m
 
   instance : Mul Natₒ where
     mul := mul
