@@ -122,6 +122,7 @@ namespace Funₒ
   theorem comp_id {α β : U} (f : α →ₒ β) : f ∘ₒ idₒ = f :=
     rfl
 end Funₒ
+export Funₒ (idₒ)
 
 namespace Id
   def based_path_induction {α : U} (a : α) {motive : (x : α) → a =ₒ x → U}
