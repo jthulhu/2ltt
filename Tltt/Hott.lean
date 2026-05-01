@@ -299,7 +299,8 @@ namespace Funₒ
   def rinv : U :=
     Σₒ g : β →ₒ α, f ∘ₒ g ~ id
 
-  theorem rinv_is_retraction {α β : U} (f : α →ₒ β) (frinv : rinv f) : Retraction.is_retraction f := by
+  theorem rinv_is_retraction {α β : U} (f : α →ₒ β) (frinv : rinv f)
+                             : Retraction.is_retraction f := by
     exact frinv
 
   def biinv : U :=
@@ -321,7 +322,11 @@ namespace Funₒ
     generalize h x = p
     simp at p
     have h : Πₒ z : α, Πₒ q : z =ₒ x,
-             Id.mp (Id.subst (P := fun hole => (x =ₒ z) =ₒ (x =ₒ hole)) q (Id.refl (x =ₒ z))) (Id.mp (Id.subst (P := fun hole => (z =ₒ z) =ₒ (hole =ₒ z)) q (Id.refl (z =ₒ z))) (Id.refl z)) =ₒ Id.refl x := by
+             Id.mp (Id.subst (P := fun hole => (x =ₒ z) =ₒ (x =ₒ hole)) q (Id.refl (x =ₒ z)))
+                   (Id.mp (Id.subst (P := fun hole => (z =ₒ z) =ₒ (hole =ₒ z)) q
+                                    (Id.refl (z =ₒ z)))
+                          (Id.refl z))
+             =ₒ Id.refl x := by
       introₒ z
       introₒ q
       path_inductionₒ q
@@ -345,7 +350,8 @@ namespace Funₒ
     simp
     rflₒ
 
-  abbrev id_endpoint_id {α : U} {x y x' y' : α} (p : x =ₒ x') (q : y =ₒ y') : Funₒ (x =ₒ y) (x' =ₒ y') := by
+  abbrev id_endpoint_id {α : U} {x y x' y' : α} (p : x =ₒ x') (q : y =ₒ y')
+                        : Funₒ (x =ₒ y) (x' =ₒ y') := by
     introₒ l
     exact (p⁻¹ ⬝ l) ⬝ q
 
@@ -454,7 +460,8 @@ namespace Funₒ
 
   theorem sigma_closed_under_retract {α : U} {β β' : α → U}
                                      (r : (x : α) →ₒ Retraction.is_retract (β x) (β' x))
-                                     : Retraction.is_retract (Σₒ x : α, β x) (Σₒ x : α, β' x) := by
+                                     : Retraction.is_retract (Σₒ x : α, β x) (Σₒ x : α, β' x)
+                                     := by
     exhibitₒ by
       introₒ ptn
       let ⟪x, y⟫ := ptn
@@ -476,7 +483,8 @@ namespace Funₒ
     rwₒ [h y]
     rflₒ
 
-  theorem linv_cancellation {α β : U} (g : α →ₒ β) (li : linv g) (x y : α) (p : g x =ₒ g y) : x =ₒ y := by
+  theorem linv_cancellation {α β : U} (g : α →ₒ β) (li : linv g) (x y : α) (p : g x =ₒ g y)
+                            : x =ₒ y := by
     let ⟪ap_inv, _⟫ := ap_section_is_section g li (x := x) (y := y)
     applyₒ ap_inv
     assumption
@@ -484,7 +492,8 @@ namespace Funₒ
   theorem qinv_to_contr (q : qinv f) : is_contractible f := by
     let ⟪g, h₁, h₂⟫ := q
     introₒ y
-    apply Funₒ.Retraction.retract_elim (α := α) (motive := fun y => U.is_contractible (Σₒ x' : α, f x' =ₒ y))
+    apply Funₒ.Retraction.retract_elim (α := α)
+      (motive := fun y => U.is_contractible (Σₒ x' : α, f x' =ₒ y))
     case rp => exact ⟪f, g, h₁⟫
     introₒ x
     simp
@@ -506,7 +515,7 @@ namespace Funₒ
       · apply ap_section_is_section _
         exhibitₒ f
         exact h₁
-      · let ⟪einv, erinv_proof, elinv_proof⟫ := id_endpoint_id.qinv (x' := x) (y' := y) (h₂ x) (h₂ y)
+      · let ⟪einv, erinv_proof, elinv_proof⟫ := id_endpoint_id.qinv (h₂ x) (h₂ y)
         let e := id_endpoint_id (h₂ x) (h₂ y)
         exhibitₒ e
         introₒ r
