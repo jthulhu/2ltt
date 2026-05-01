@@ -117,6 +117,8 @@ syntax "Σ∘" ident ":" term ", " term : term
 macro_rules
   | `(Σ∘ $x : $α, $P) => `(Sigma $α (fun $x : $α => $P))
 
+macro "⟪" left:term ", " right:term "⟫" : term => `(Sigma.mk ⟨$left, $right⟩)
+
 -- Coproduct
 
 def Plus (α : U) (β : U) : U :=
@@ -142,21 +144,9 @@ end Plus
 -- Product
 
 def Times (α : U) (β : U) : U :=
-  U.fromType (α × β)
+  Sigma α (fun _ => β)
 
 infixr:35 " ×∘ " => Times
-
-namespace Times
-  def mk {α β : U} (a : α) (b : β) : α ×∘ β :=
-    El.mk (a, b)
-
-  private abbrev ofUnderlying {α β : U} (x : α × β) : α ×∘ β :=
-    mk x.1 x.2
-
-  def elim {α β : U} {motive : α ×∘ β → U} (h : (a : α) → (b : β) → motive (mk a b)) (x : α ×∘ β)
-           : motive x :=
-     x.intoU.rec (motive := fun x => motive <| ofUnderlying x) h
-end Times
 
 -- inductive∘ A (α₁ : U) ... (αₙ : U) : U where
 --   | c₁ (_ : β₁) ... (_ : βₘ) : A
