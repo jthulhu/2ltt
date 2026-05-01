@@ -36,6 +36,12 @@ namespace Funₒ
   @[simp]
   theorem compose.beta {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) (x : α) : (f ∘ₒ g) x = f (g x) := rfl
 
+  @[simp]
+  theorem id_comp {α β : U} (f : α →ₒ β) : id ∘ₒ f = f := rfl
+
+  @[simp]
+  theorem comp_id {α β : U} (f : α →ₒ β) : f ∘ₒ id = f := rfl
+end Funₒ
 
 namespace Id
   theorem based_path_induction {α : U} (a : α) {motive : (x : α) → a =ₒ x → U}
@@ -561,6 +567,9 @@ infix:50 " ≃ₒ " => Funₒ.equiv
 def Equivalence.refl (α : U) : α ≃ₒ α :=
   ⟪Funₒ.id, Funₒ.id_is_equiv⟫
 
+@[simp]
+theorem Equivalence.refl.beta {α : U} : pr₁ (refl α) = Funₒ.id := by rfl
+
 namespace Funₒ
   @[simp]
   def equiv_to_qinv.beta {α : U} : equiv_to_qinv (Equivalence.refl α)
@@ -572,6 +581,92 @@ namespace Funₒ
                                    = ⟪Funₒ.id, funₒ x : α => by rflₒ, funₒ x => by rflₒ⟫ := by
     rfl'
 end Funₒ
+
+namespace Unitₒ
+  theorem eq_unit (x : Unitₒ) : x =ₒ ()ₒ := by
+    apply Unitₒ.elim (motive := fun x => x =ₒ ()ₒ) (Id.refl ()ₒ)
+
+  theorem id_is_unit (x y : Unitₒ) : (x =ₒ y) ≃ₒ Unitₒ := by
+    exhibitₒ by
+      introₒ _p
+      exact ()ₒ
+    apply Funₒ.qinv_to_equiv
+    exhibitₒ by
+      introₒ ()ₒ
+      refine Unitₒ.elim (motive := fun x => x =ₒ y) ?_ x
+      refine Unitₒ.elim (motive := fun y => ()ₒ =ₒ y) ?_ y
+      rflₒ
+    exhibitₒ by
+      introₒ z
+      simp
+      rewriteₒ [eq_unit z]
+      rflₒ
+    introₒ p
+    simp
+    refine Unitₒ.elim (motive := fun y => (Unitₒ.elim (motive := fun x => x =ₒ y) (Unitₒ.elim (motive := fun y => ()ₒ =ₒ y) (Id.refl ()ₒ) y) x) =ₒ p) ?_ y
+    simp
+    refine Unitₒ.elim (motive := fun x => (Unitₒ.elim (Id.refl ()ₒ) x) =ₒ p) ?_ x
+    simp
+    path_inductionₒ p
+    rflₒ
+
+  theorem loop_is_refl {x : Unitₒ} (p : x =ₒ x) : p =ₒ Id.refl x := by
+    let ⟪f, g, gf_id, _⟫ := id_is_unit x x
+    have fp_is_frefl : f p =ₒ f (Id.refl x) := by
+      rwₒ [eq_unit (f p), eq_unit (f (Id.refl x))]
+    have gfp_is_gfrefl := Id.ap g fp_is_frefl
+    rewriteₒ [gf_id _, gf_id _] at gfp_is_gfrefl
+    assumption
+end Unitₒ
+
+namespace U.is_contractible
+  theorem contr_eqv_unit {α : U} (cntrl : is_contractible α) : α ≃ₒ Unitₒ := by
+    exhibitₒ by
+      introₒ _x
+      exact ()ₒ
+    apply Funₒ.qinv_to_equiv
+    exhibitₒ by
+      introₒ ()ₒ
+      exact pr₁ cntrl
+    exhibitₒ by
+      introₒ ()ₒ
+      rflₒ
+    introₒ x
+    exact pr₂ cntrl x
+
+  theorem singleton_eqv_unit {α : U} : Singleton α ≃ₒ Unitₒ := by
+    apply contr_eqv_unit
+    apply Singleton.is_contr
+end U.is_contractible
+
+namespace Sigmaₒ
+  section Theorem_2_7_2
+    variable {α : U} {β : α → U} {w w' : Σₒ x : α, β x}
+
+    theorem eq_constructor : (w =ₒ w') ≃ₒ Σₒ p : pr₁ w =ₒ pr₁ w', Id.subst p (pr₂ w) =ₒ pr₂ w' := by
+      exhibitₒ by
+        introₒ p
+        path_inductionₒ p
+        exhibitₒ Id.refl _
+        rflₒ
+      apply Funₒ.qinv_to_ishae
+      let ⟪w₁, w₂⟫ := w
+      let ⟪w₁', w₂'⟫ := w'
+      exhibitₒ by
+        introₒ ptn
+        let ptn : Σₒ p : w₁ =ₒ w₁', Id.subst p w₂ =ₒ w₂' := ptn
+        let ⟪p, q⟫ := ptn
+        path_inductionₒ p
+        dsimp at q
+        rwₒ [q]
+      exhibitₒ by
+        introₒ ⟪p, q⟫
+        simp
+        replace pr₁ ⟪w₁, w₂⟫ with w₁ at p q
+        sorry
+        -- path_inductionₒ p
+  end Theorem_2_7_2
+end Sigmaₒ
 
 namespace Equivalence
   theorem trans {α β γ : U} (e : α ≃ₒ β) (e' : β ≃ₒ γ) : α ≃ₒ γ := by
@@ -590,10 +685,81 @@ namespace Equivalence
     rwₒ [g'f'_id _, gf_id _]
     rflₒ
 
+  theorem symm {α β : U} (e : α ≃ₒ β) : β ≃ₒ α := by
+    let ⟪f, f_is_hae⟫ := e
+    let ⟪g, fg_id, gf_id⟫ := Funₒ.ishae_to_qinv f f_is_hae
+    exhibitₒ g
+    apply Funₒ.qinv_to_ishae
+    exact ⟪f, gf_id, fg_id⟫
+
+  section Exercise_2_10
+    variable {α : U} {β : α → U} {γ : (Σₒ x : α, β x) → U}
+    theorem sigma_assoc : (Σₒ x : α, Σₒ y : β x, γ ⟪x, y⟫) ≃ₒ Σₒ p : (Σₒ x : α, β x), γ p := by
+      exhibitₒ by
+        introₒ ⟪x, y, z⟫
+        exhibitₒ ⟪x, y⟫
+        exact z
+      apply Funₒ.qinv_to_ishae
+      exhibitₒ by
+        introₒ ⟪⟪x, y⟫, z⟫
+        exhibitₒ x
+        exhibitₒ y
+        exact z
+      exhibitₒ by
+        introₒ ⟪⟪x, y⟫, z⟫
+        rflₒ
+      introₒ ⟪x, y, z⟫
+      rflₒ
+  end Exercise_2_10
+
   -- Definition 4.7.5
   def total {α : U} {β β' : α → U} (f : (x : α) →ₒ (β x →ₒ β' x))
             : Funₒ (Σₒ x : α, β x) (Σₒ x : α, β' x) :=
     funₒ ptn => let ⟪x, y⟫ := ptn; ⟪x, f x y⟫
+
+  section
+    variable {α : U} {β β' : α → U} (f : (x : α) →ₒ (β x →ₒ β' x))
+
+    -- Theorem 4.7.6
+    theorem fiber_total_is_fiber (x : α) (v : β' x): Funₒ.fiber (total f) ⟪x, v⟫ ≃ₒ Funₒ.fiber (f x) v := by
+      apply Equivalence.trans (β := Σₒ a : α, Σₒ u : β a, ⟪a, f a u⟫ =ₒ ⟪x, v⟫)
+      · apply symm
+        apply @sigma_assoc α β (fun ⟪a, u⟫ => ⟪a, f a u⟫ =ₒ ⟪x, v⟫)
+      apply Equivalence.trans (β := Σₒ a : α, Σₒ u : β a, Σₒ p : a =ₒ x, Id.subst p (f a u) =ₒ v)
+      · sorry
+      apply Equivalence.trans (β := Σₒ a : α, Σₒ p : a =ₒ x, Σₒ u : β a, Id.subst p (f a u) =ₒ v)
+      · sorry
+      apply Equivalence.trans (β := Σₒ u : β x, f x u =ₒ v)
+      · sorry
+      exact Equivalence.refl _
+
+    -- Theorem 4.7.7
+    theorem total_equiv_if_equiv (f_eqv : Πₒ x : α, Funₒ.is_equiv (f x)) : Funₒ.is_equiv (total f) := by
+      apply Funₒ.qinv_to_equiv
+      apply Funₒ.contr_to_qinv
+      introₒ ⟪x, v⟫
+      apply Funₒ.retract_preseve_contractible (Funₒ.fiber (f x) v)
+      · let ⟪s, r, rs_id, _⟫ := fiber_total_is_fiber f x v
+        exhibitₒ r
+        exhibitₒ s
+        exact rs_id
+      · refine Funₒ.qinv_to_contr _ ?_ _
+        apply Funₒ.ishae_to_qinv
+        exact f_eqv x
+
+    theorem equiv_if_total_equiv (total_f_eqv : Funₒ.is_equiv (total f)) (x : α) : Funₒ.is_equiv (f x) := by
+      apply Funₒ.qinv_to_equiv
+      apply Funₒ.contr_to_qinv
+      introₒ v
+      apply Funₒ.retract_preseve_contractible (Funₒ.fiber (total f) ⟪x, v⟫)
+      · let ⟪r, s, _, rs_id, _⟫ := fiber_total_is_fiber f x v
+        exhibitₒ r
+        exhibitₒ s
+        exact rs_id
+      · refine Funₒ.qinv_to_contr _ ?_ _
+        apply Funₒ.ishae_to_qinv
+        exact total_f_eqv
+  end
 end Equivalence
 
 namespace Univalence
@@ -623,7 +789,21 @@ namespace Univalence
   @[simp]
   def eqv_to_id.beta {α : U} : eqv_to_id (Equivalence.refl α) =ₒ Id.refl α := by
     exact univalence.beta
+
+  theorem canonical_eqv_to_id {α β : U} : canonical α β ∘ₒ (Pi.lam eqv_to_id) ~ Funₒ.id :=
+    univalence |> pr₂ |> pr₂ |> pr₁
+
+  theorem eqv_to_id_canonical {α β : U} : (Pi.lam eqv_to_id) ∘ₒ canonical α β ~ Funₒ.id :=
+    univalence |> pr₂ |> pr₁
 end Univalence
+
+theorem U.is_contractible.path_is_refl {α : U} {x : α} (ctr : is_contractible α) (p : x =ₒ x)
+                                       : p =ₒ Id.refl x := by
+  let ⟪f, g, gf_id, _⟫ := contr_eqv_unit ctr
+  apply Funₒ.linv_cancellation (Id.ap f |> Pi.lam)
+  · apply Funₒ.ap_section_is_section
+    exact ⟪g, gf_id⟫
+  · apply Unitₒ.loop_is_refl
 
 section Lemma_4_8_1
   universe u
@@ -661,10 +841,31 @@ namespace Extensionality
     variable {α β : U.{u₁}} {γ : U.{u₂}}
     variable (e : α ≃ₒ β)
     theorem lift_equiv_fun : (γ →ₒ α) ≃ₒ (γ →ₒ β) := by
+      have underlying (p : α =ₒ β) : (γ →ₒ α) ≃ₒ (γ →ₒ β) := by
+        path_inductionₒ p
+        exact Equivalence.refl _
       have p := Univalence.eqv_to_id e
-      path_inductionₒ p
-      applyₒ Univalence.canonical _ _
+      exact underlying p
+
+    theorem lift_equiv_fun.beta {α γ : U} : lift_equiv_fun (Equivalence.refl α)
+                                            =ₒ Equivalence.refl (γ →ₒ α) := by
+      unfold lift_equiv_fun
+      simp
+      rewriteₒ [@Univalence.eqv_to_id.beta α]
       rflₒ
+
+    @[simp]
+    theorem lift_equiv_fun.pr₁.beta (f : γ →ₒ α) : pr₁ (lift_equiv_fun e) f =ₒ (pr₁ e) ∘ₒ f := by
+      have underlying (p : α =ₒ β)
+                     : pr₁ (lift_equiv_fun (Univalence.canonical _ _ p)) f
+                       =ₒ (pr₁ (Univalence.canonical _ _ p)) ∘ₒ f := by
+        path_inductionₒ p
+        simp
+        rwₒ [lift_equiv_fun.beta]
+        rflₒ
+      have h := underlying (Univalence.eqv_to_id e)
+      rewriteₒ [Univalence.canonical_eqv_to_id _] at h
+      exact h
   end Lemma_4_9_2
 
   section Corollary_4_9_3
@@ -677,7 +878,144 @@ namespace Extensionality
       introₒ x
       rewriteₒ [Univalence.eqv_to_id fiber_pr₁_eqv_beta]
       exact p x
+
+    theorem into_sum_of_contractible_is_into_base : (α →ₒ Σₒ x : α, β x) ≃ₒ (α →ₒ α) := by
+      apply lift_equiv_fun
+      exhibitₒ Pi.lam pr₁
+      exact pr₁_eqv p
   end Corollary_4_9_3
+end Extensionality
+
+namespace Singleton
+  section Lemma_3_11_9
+    universe u
+    variable {α : U.{u}} {β : α → U.{u}}
+    theorem sum_is_base_if_contr (p : Πₒ x : α, U.is_contractible (β x)) : (Σₒ x : α, β x) ≃ₒ α := by
+      exhibitₒ Pi.lam pr₁
+      apply Extensionality.pr₁_eqv
+      assumption
+
+    theorem contract_sum (α_ctrbl : U.is_contractible α) : (Σₒ x : α, β x) ≃ₒ (β (pr₁ α_ctrbl)) := by
+      let a := pr₁ α_ctrbl
+      let a_is_center := pr₂ α_ctrbl
+      exhibitₒ by
+        introₒ ⟪x, y⟫
+        dsimp at y
+        exact Id.subst (a_is_center x)⁻¹ y
+      apply Funₒ.qinv_to_ishae
+      exhibitₒ by
+        introₒ z
+        exhibitₒ a
+        exact z
+      exhibitₒ by
+        introₒ h
+        simp
+        rewriteₒ [U.is_contractible.path_is_refl α_ctrbl <| pr₂ α_ctrbl (pr₁ α_ctrbl)]
+        rflₒ
+      introₒ ⟪x, y⟫
+      revertₒ y
+      simp
+      rewriteₒ [← a_is_center x, U.is_contractible.path_is_refl α_ctrbl <| a_is_center _]
+      introₒ y
+      rflₒ
+  end Lemma_3_11_9
+end Singleton
+
+namespace U.is_contractible
+  theorem map_is_eqv {α β : U} (α_contr : is_contractible α) (β_contr : is_contractible β) (f : α →ₒ β)
+                     : Funₒ.is_equiv f := by
+    apply Funₒ.qinv_to_ishae
+    exhibitₒ by
+      introₒ _y
+      exact pr₁ α_contr
+    exhibitₒ by
+      introₒ y
+      apply Id.trans _ (pr₁ β_contr) _
+      · exact (pr₂ β_contr _)⁻¹
+      · exact pr₂ β_contr _
+    introₒ x
+    exact pr₂ α_contr _
+
+end U.is_contractible
+
+namespace WeakChoice
+  variable {α : U} {β : α → U} {γ : (x : α) → β x → U}
+
+  -- Function 2.15.6
+  def choice (ex : Πₒ x : α, Σₒ a : β x, γ x a) : Πₒ x : α, β x := by
+    introₒ x
+    exact ex x |> pr₁
+
+  theorem choice.is_correct (ex : Πₒ x : α, Σₒ a : β x, γ x a) : Πₒ x : α, γ x (choice ex x) := by
+    introₒ x
+    exact ex x |> pr₂
+
+  def choice.map : Funₒ (Πₒ x : α, Σₒ a : β x, γ x a) (Σₒ g : (Πₒ x : α, β x), Πₒ x : α, γ x (g x)) :=
+    funₒ ex => ⟪choice ex, choice.is_correct ex⟫
+
+  -- Half of Theorem 2.15.7
+  theorem choice_is_retract : Funₒ.rinv (@choice.map α β γ) := by
+    exhibitₒ by
+      introₒ ⟪g, h⟫
+      introₒ x
+      exact ⟪g x, h x⟫
+    introₒ ⟪g, h⟫
+    simp
+    unfold choice.map choice choice.is_correct
+    rflₒ
+end WeakChoice
+
+namespace Extensionality
+  section Theorem_4_9_4
+    universe u
+    variable {α : U.{u}} {β : α → U.{u}} (p : Πₒ x : α, U.is_contractible (β x))
+
+    theorem weak_fun_ext : U.is_contractible (Πₒ x : α, β x) := by
+      let f := pr₁ <| into_sum_of_contractible_is_into_base (α := α) (β := β) p
+      let f_is_equiv := pr₂ <| into_sum_of_contractible_is_into_base (α := α) (β := β) p
+      apply Funₒ.retract_preseve_contractible (Funₒ.fiber (pr₁ <| into_sum_of_contractible_is_into_base p) Funₒ.id)
+      · exhibitₒ by
+          introₒ ⟪g, q⟫
+          introₒ x
+          unfold into_sum_of_contractible_is_into_base at q
+          simp at q
+          rewriteₒ [lift_equiv_fun.pr₁.beta _ _] at q
+          simp at q
+          let y := pr₂ (g x)
+          exact Id.subst (Funₒ.happly q x) y
+        exhibitₒ by
+          introₒ g
+          exhibitₒ funₒ x => ⟪x, g x⟫
+          unfold into_sum_of_contractible_is_into_base
+          unfold lift_equiv_fun
+          simp
+          sorry
+        introₒ g
+        simp
+        sorry
+      · refine Funₒ.qinv_to_contr f ?_ Funₒ.id
+        apply Funₒ.ishae_to_qinv
+        exact f_is_equiv
+  end Theorem_4_9_4
+
+  section Theorem_4_9_5
+    universe u
+    variable {α : U.{u}} {β : α → U.{u}} {f g : Pi α β}
+
+    theorem happly_is_equiv : Funₒ.is_equiv (Pi.lam <| Funₒ.happly (f := f) (g := g)) := by
+      apply Equivalence.equiv_if_total_equiv (funₒ g => Pi.lam <| Funₒ.happly (f := f) (g := g))
+      apply U.is_contractible.map_is_eqv
+      · exact Singleton.is_contr
+      · apply Funₒ.retract_preseve_contractible (Πₒ x : α, Σₒ u : β x, f x =ₒ u)
+        · exhibitₒ WeakChoice.choice.map
+          apply WeakChoice.choice_is_retract
+        · apply weak_fun_ext
+          introₒ x
+          apply Singleton.is_contr
+
+    theorem fun_ext (H : f ~ g) : f =ₒ g :=
+      pr₁ happly_is_equiv <| H
+  end Theorem_4_9_5
 end Extensionality
 
 end Hott

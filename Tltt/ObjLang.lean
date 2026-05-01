@@ -164,6 +164,9 @@ namespace Pi
   @[simp]
   theorem lam_app : lam (app g) = g := by rfl
   end
+
+  def eta {α : U} {β : α → U} (f : Pi α β) : (funₒ x => f x) = f := by
+    rfl
 end Pi
 
 -- Arrow type
@@ -277,6 +280,13 @@ def Unitₒ : U :=
 namespace Unitₒ
   @[match_pattern]
   def point : Unitₒ := ⟨()⟩
+
+  protected def elim {motive : Unitₒ → U} (unit_case : motive point) (x : Unitₒ) : motive x :=
+    @PUnit.rec (fun y => motive (El.mk y)) unit_case x.intoU
+
+  @[simp]
+  protected def elim.beta {motive : Unitₒ → U} (unit_case : motive point)
+                          : @Unitₒ.elim motive unit_case point = unit_case := rfl
 end Unitₒ
 
 notation "()ₒ" => Unitₒ.point
