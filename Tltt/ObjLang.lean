@@ -389,13 +389,13 @@ namespace Id
     apply El.intoU
     apply h
 
-  def subst {α : U} {P : α → U} {a b : α} (h₁ : a =ₒ b) : P a → P b := by
+  def subst {α : U} {P : α → U} {a b : α} (h : a =ₒ b) : P a → P b := by
     apply Pi.app
     apply Id.elim (P := fun x y _ => P x →ₒ P y)
     intro x
     apply Pi.lam
     exact id
-    exact h₁
+    exact h
 
   def mp {α β : U} (h : α =ₒ β) (a : α) : β :=
     subst (P := fun x => x) h a
