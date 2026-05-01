@@ -12,16 +12,40 @@ noncomputable section
 namespace Hott
 open Hott
 
-@[reducible]
-def Funₒ.id {α : U} : α →ₒ α :=
-  Λ x => x
+-- Composition
 
-@[simp]
-def Funₒ.id_is_id {α : U} {x : α} : (id $ₒ x) = x := by
-  rfl
+namespace Funₒ
+  @[reducible]
+  def id {α : U} : α →ₒ α :=
+    Λ x => x
+
+  @[simp]
+  def id_is_id {α : U} {x : α} : (id $ₒ x) = x := by
+    rfl
+
+  @[reducible]
+  def after {α β γ : U} (f : α →ₒ β) (g : β →ₒ γ) : α →ₒ γ :=
+    Λ x => g $ₒ f x
+
+  @[reducible]
+  def compose {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) : α →ₒ γ :=
+    Λ x => f $ₒ g x
+end Funₒ
+
+infixr:90 " ∘ₒ " => Funₒ.compose
 
 namespace Id
-
+  theorem based_path_induction {α : U} (a : α) {motive : (x : α) → a =ₒ x → U}
+                               (c : motive a (refl a)) (x : α) (p : a =ₒ x) : motive x p := by
+    let D := λₒ x : α => λₒ y : α => λₒ p : x =ₒ y =>
+      Πₒ C : ((z : α) →ₒ x =ₒ z →ₒ U), Πₒ _x : C x (refl x), C y p
+    have f : ∀ x y : α, ∀ p : x =ₒ y, D x y p := by
+      intro x y p
+      path_inductionₒ p
+      introₒ C
+      introₒ c
+      exact c
+    exact f a x p @ₒ (funₒ z => funₒ p => motive z p) @ₒ c
   section
     variable {α : U}
     
@@ -76,43 +100,34 @@ namespace Id
     -- variable (p : x =ₒ y) (q : y =ₒ z)
 
     -- Lemma 2.2.1
-    def ap (f : α → β) {x y : α} (p : x =ₒ y) : f x =ₒ f y := by
+    def ap (f : α →ₒ β) {x y : α} (p : x =ₒ y) : f x =ₒ f y := by
       path_inductionₒ p
       rflₒ
 
     @[simp]
-    theorem ap_refl (f : α → β) (x : α) : ap f (refl x) = refl (f x) := by
+    theorem ap_refl (f : α →ₒ β) (x : α) : ap f (refl x) = refl (f x) := by
       rfl
 
     -- Lemma 2.2.2
-    theorem ap_concat (f : α → β) (x y z : α) (p : x =ₒ y) (q : y =ₒ z)
+    theorem ap_concat (f : α →ₒ β) (x y z : α) (p : x =ₒ y) (q : y =ₒ z)
                       : ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q := by
       path_inductionₒ p
       rwₒ [refl_concat _ _ _, refl_concat _ _ _]
 
-    theorem ap_inv (f : α → β) (x y : α) (p : x =ₒ y) : ap f p⁻¹ =ₒ (ap f p)⁻¹ := by
+    theorem ap_inv (f : α →ₒ β) (x y : α) (p : x =ₒ y) : ap f p⁻¹ =ₒ (ap f p)⁻¹ := by
       path_inductionₒ p
       rflₒ
 
     theorem ap_id (x y : α) (p : x =ₒ y) : ap Funₒ.id p =ₒ p := by
       path_inductionₒ p
       rflₒ
+
+    theorem ap_comp (f : α →ₒ β) (g : β →ₒ γ) {x y : α} (p : x =ₒ y)
+                    : ap g (ap f p) =ₒ ap (g ∘ₒ f) p := by
+      path_inductionₒ p
+      rflₒ
   end
 end Id
-
--- Composition
-
-namespace Funₒ
-  @[reducible]
-  def after {α β γ : U} (f : α →ₒ β) (g : β →ₒ γ) : α →ₒ γ :=
-    Λ x => g $ₒ f x
-
-  @[reducible]
-  def compose {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) : α →ₒ γ :=
-    Λ x => f $ₒ g x
-end Funₒ
-
-infixr:90 " ∘ₒ " => Funₒ.compose
 
 -- Homotopies
 
@@ -165,7 +180,7 @@ namespace Homotopy
     theorem homm_ap_commute : H (f x) =ₒ Id.ap f (H x) := by
       have h₁ := homotopy_transport_commute f Funₒ.id H (f x) x (H x)
       rewriteₒ [Id.ap_id _ _ _] at h₁
-      have h₂ := Id.ap (· ⬝ (H x)⁻¹) h₁
+      have h₂ := Id.ap (λₒ p => p ⬝ (H x)⁻¹) h₁
       simp at h₂
       rewriteₒ [
         ← Id.concat_assoc _ _ _ _ _ _ _,
@@ -299,7 +314,7 @@ namespace Funₒ
   def equiv (α β : U) : U :=
     Σₒ f : α →ₒ β, is_equiv f
 
-  def id_is_equiv {α : U} : is_equiv (@id α) := by
+  theorem id_is_equiv {α : U} : is_equiv (@id α) := by
     apply qinv_to_ishae
     exact ⟪id, Homotopy.refl id, Homotopy.refl id⟫
 end Funₒ
@@ -316,7 +331,7 @@ namespace Univalence
 
   axiom univalence {α β : U} : Funₒ.is_equiv (canonical α β)
 
-  def eqv_to_id {α β : U} : (α ≃ₒ β) → α =ₒ β :=
+  def eqv_to_id {α β : U} : α ≃ₒ β → α =ₒ β :=
     let ⟪g, _, _⟫ := Funₒ.ishae_to_qinv (canonical α β) univalence
     g
 end Univalence
