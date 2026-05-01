@@ -1,6 +1,8 @@
 import Tltt.ObjLang
 import Tltt.Tactics
 
+set_option autoImplicit false
+
 noncomputable section
 
 -- This module gives basic definitions, lemmas and axioms of Hott. Since we cannot "cheat" in
@@ -36,7 +38,7 @@ namespace Id
       rflₒ
 
     @[simp]
-    theorem inv_refl_concat : ((refl x)⁻¹ ⬝ refl x) = refl x := by
+    theorem inv_refl_concat (x : α) : ((refl x)⁻¹ ⬝ refl x) = refl x := by
       rfl
 
     theorem inv_concat (x y : α) (p : x =ₒ y) : p⁻¹ ⬝ p =ₒ refl y := by
@@ -55,12 +57,12 @@ namespace Id
     theorem inv_refl (x : α) : (refl x)⁻¹ = refl x := by
       rfl
 
-    theorem inv_inv : (p⁻¹)⁻¹ =ₒ p := by
+    theorem inv_inv (x y : α) (p : x =ₒ y) : (p⁻¹)⁻¹ =ₒ p := by
       path_inductionₒ p
       rflₒ
 
     def concat_assoc (x y z w : α) (p : x =ₒ y) (q : y =ₒ z) (r : z =ₒ w)
-                         : p ⬝ (q ⬝ r) =ₒ (p ⬝ q) ⬝ r := by
+                     : p ⬝ (q ⬝ r) =ₒ (p ⬝ q) ⬝ r := by
       path_inductionₒ p
       introₒ q
       path_inductionₒ q
@@ -81,11 +83,12 @@ namespace Id
       rflₒ
 
     @[simp]
-    theorem ap_refl : ap f (refl x) = refl (f x) := by
+    theorem ap_refl (f : α → β) (x : α) : ap f (refl x) = refl (f x) := by
       rfl
 
     -- Lemma 2.2.2
-    theorem ap_concat : ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q := by
+    theorem ap_concat (f : α → β) (x y z : α) (p : x =ₒ y) (q : y =ₒ z)
+                      : ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q := by
       path_inductionₒ p
       introₒ q
       rwₒ [refl_concat _ _ _, refl_concat _ _ _]
@@ -265,7 +268,7 @@ namespace Arrow
       apply Homotopy.homm_comp
       apply γ
       apply h₂
-    ⟪g, ⟪H, h₁⟫⟫
+    ⟪g, H, h₁⟫
 
   theorem contr_to_qinv (c : is_contractible f) : qinv f :=
     let g : β →ₒ α := Λ x =>
