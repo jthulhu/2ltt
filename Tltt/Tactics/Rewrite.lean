@@ -11,7 +11,6 @@ open Lean (
   FVarId
   LocalDecl
   MVarId
-  Occurrences
   Syntax
   indentExpr
   instantiateMVars
@@ -33,6 +32,7 @@ open Lean.Elab.Term (withSynthesize)
 open Lean.Meta (
   AssertAfterResult
   MetaM
+  Occurrences
   RewriteResult
   forallMetaTelescopeReducing
   getMVarsNoDelayed

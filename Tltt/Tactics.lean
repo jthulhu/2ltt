@@ -35,6 +35,7 @@ open Lean.Elab (throwUnsupportedSyntax)
 open Lean.Meta (
   AssertAfterResult
   MetaM
+  Occurrences
   RewriteResult
   forallBoundedTelescope
   forallMetaTelescopeReducing
@@ -58,8 +59,8 @@ open Lean.Meta (
   whnfD
   whnfI
   withLCtx
-  withLocalDecl
   withLetDecl
+  withLocalDecl
 )
 open Lean.MonadLCtx (getLCtx)
 open Lean (
@@ -70,7 +71,6 @@ open Lean (
   LocalDecl
   MVarId
   Name
-  Occurrences
   Syntax
   indentExpr
   instantiateMVars
@@ -131,25 +131,6 @@ noncomputable section
 example {α β : U} (h : β =ₒ α) (x : α) : β := by
   rewriteₒ [h]
   assumption
-
-example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
-  rewriteₒ [h₁]
-  assumption
-
-example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
-  rewriteₒ [h₂] at h₁
-  assumption
-
-example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
-  rewriteₒ [h₁, h₂]
-  rflₒ
-
-example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
-  rwₒ [h₁, h₂]
-
-example (x y : Natₒ) (p : x =ₒ y) : y =ₒ x := by
-  path_inductionₒ p
-  rflₒ
 
 example {α β : U} (h : α =ₒ β) (x : α) : β := by
   rewriteₒ [← h]

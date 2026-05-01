@@ -910,7 +910,7 @@ namespace InductiveDecl
             | some ctorType =>
               let type ← elab_obj_type ctorType
               trace[Tltt.inductiveₒ] "elabType {ctor_view.name}: {type}"
-              synthesizeSyntheticMVars (mayPostpone := true)
+              synthesizeSyntheticMVars (postpone := .yes)
               let type ← instantiateMVars type
               let type ← checkParamOccs type
               forallTelescopeReducing type fun _ resultingType => do
