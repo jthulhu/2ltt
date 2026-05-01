@@ -13,3 +13,5 @@ package tltt where
 lean_lib Tltt where
 
 lean_lib Misc where
+
+lean_lib Finite where
