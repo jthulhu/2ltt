@@ -129,7 +129,20 @@ def _root_.Lean.Expr.id? (e : Expr) : MetaM (Option (Level × Expr × Expr × Ex
   else
     return none
 
-/-- Given `x : ^α` where `α : ^U.{u}`, returns `u` -/
+/-- Given `Pi.{u₁, u₂} α β`, returns `(u₁, u₂, α, β)`. -/
+@[inline]
+def _root_.Lean.Expr.pi? (e : Expr) : MetaM (Option (Level × Level × Expr × Expr)) := do
+  let u₁ ← mkFreshLevelMVar
+  let u₂ ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar (Expr.const ``liftedU [u₁])
+  let β ← mkFreshExprMVar (Expr.forallE `_ (α.liftWith u₁) (.const ``liftedU [u₂]) .default)
+  let pattern := mkApp2 (.const ``Hott.Pi [u₁, u₂]) α β
+  if ← isDefEq e pattern then
+    return some (u₁, u₂, α, β)
+  else
+    return none
+
+/-- Given `x : ^α` where `α : ^U.{u}`, returns `u`. -/
 def getObjLevel (e : Expr) : MetaM Level := do
   let t ← inferType e
   let u ← mkFreshLevelMVar
@@ -158,6 +171,30 @@ def mkIdSymm (h : Expr) : MetaM Expr := do
         return mkApp4 (.const ``Id.symm [u]) α a b h
       | none =>
         throwError "AppBuilder for '{``Id.symm}, object equality proof expected{indentExpr h}\nhas type{indentExpr hType}"
+
+@[inline]
+def _root_.Lean.MVarId.introsₒ (goal : MVarId) : List Name → MetaM (MVarId × List FVarId)
+  | [] => return (goal, [])
+  | var_name::rest => do
+    goal.checkNotAssigned `introsₒ
+    Lean.logInfo m!"hello\n{goal}"
+    -- we have
+    --   goal : ^((var : α) →ₒ (β var))
+    -- we want to produce
+    --   goal' : ^β
+    -- with goal ≡ Pi.lam (λ var. goal')
+    let goal_typeₒ ← (← goal.getType).objType!
+    Lean.logInfo "checkpoint"
+    let some (u₁, u₂, α, β) ← goal_typeₒ.pi?
+      | throwTacticEx `introsₒ goal
+                      "could not introduce a variable, goal has type{indentExpr goal_typeₒ}\nwhich is not a universal quantifier"
+    let (lam, goal'', fvars) ← withLocalDecl var_name .default (α.liftWith u₁) fun var => do
+      let goal' ← mkFreshExprMVar (Expr.app β var |>.liftWith u₂)
+      let (goal'', fvars) ← goal'.mvarId!.introsₒ rest
+      let lam ← mkLambdaFVars #[var] goal'
+      return (lam, goal'', var.fvarId!::fvars)
+    goal.assign <| mkAppN (.const ``Pi.lam [u₁, u₂]) #[α, β, lam]
+    return (goal'', fvars)
 
 /-- Returns `a =ₒ b`. -/
 def mkId (u : Level) (α a b : Expr) : MetaM Expr := do
@@ -328,7 +365,7 @@ namespace PathInduction
         --   where inner_typeₒ = ^(∀ₒ ..xs, e)
         -- forall_form =?= λ x y p. λ ..xs. forall_formₒ x y p ..($ₒ xs)
         let (forall_formₒ_type, motive, motive_level) ← forallBoundedTelescope (← forall_form.getType) (some 3)
-                                                            fun xyp inner_type => do
+                                                                               fun xyp inner_type => do
           let inner_typeₒ ← forallTelescopeReducing inner_type fun xs e => do
             let mut result := e
             for var in xs.reverse do
@@ -345,15 +382,17 @@ namespace PathInduction
           let motive_level ← inner_typeₒ.levelAsObjType!
           return (forall_formₒ_type, motive, motive_level)
         let forall_formₒ ← mkFreshExprSyntheticOpaqueMVar forall_formₒ_type
-        forallBoundedTelescope (← forall_form.getType) (some 3) fun xyp inner_type => do
+        let var_names ← forallBoundedTelescope (← forall_form.getType) (some 3) fun xyp inner_type => do
           -- body = λ ..xs. forall_formₒ x y p ..($ₒ xs)
           let #[x, y, p] := xyp | throwTacticEx `path_inductionₒ forall_form "this should not happen"
-          let body ← forallTelescopeReducing inner_type fun xs _ => do
+          let (body, var_names) ← forallTelescopeReducing inner_type fun xs _ => do
             let mut body := mkApp3 forall_formₒ x y p
             for arg in xs do
               body ← mkAppM ``Pi.app #[body, arg]
-            mkLambdaFVars xs body
+            let lam_body ← mkLambdaFVars xs body
+            return (lam_body, ← xs.toList.mapM fun v => v.fvarId!.getUserName)
           forall_form.assign <| ← mkLambdaFVars xyp body
+          return var_names
         let forall_formₒ := forall_formₒ.mvarId!
         let refl_case_motive_type ← withLocalDecl name .default (← α.lift) fun newx => do
           let motiveBody ←
@@ -363,8 +402,9 @@ namespace PathInduction
         let refl_case_goal ← mkFreshExprSyntheticOpaqueMVar refl_case_motive_type
         let (_, refl_case_goal_with_x) ← refl_case_goal.mvarId!.intro name
         let elimProof := mkAppN (.const ``Id.elim [u, motive_level]) #[α, motive, refl_case_goal]
-        replaceMainGoal [refl_case_goal_with_x]
         forall_formₒ.assign elimProof
+        let (refl_case_with_subst_goal, _) ← refl_case_goal_with_x.introsₒ var_names
+        replaceMainGoal [refl_case_with_subst_goal]
 
   @[tactic path_induction_obj]
   def path_induction_obj_impl : Tactic
