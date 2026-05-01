@@ -170,7 +170,7 @@ end Pi
 def Funₒ (α : U) (β : U) : U :=
   Pi α (fun _ => β)
 
-infixr:20 " →ₒ " => Funₒ
+infixr:25 " →ₒ " => Funₒ
 
 instance {α β : U} : CoeFun (α →ₒ β) (fun _ => α → β) where
   coe := Pi.app
@@ -374,7 +374,7 @@ namespace Id
   def concat {α : U} {x y z : α} (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z :=
     trans x y z p₁ p₂
 
-  infix:45 " ⬝ " => concat
+  infixr:45 " ⬝ " => concat
 
   @[app_unexpander concat]
   def unexpand_concat : Unexpander
