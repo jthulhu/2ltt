@@ -240,9 +240,236 @@ namespace Below
 
 end Below
 
+def empty.functor (D : Type _) [DirectCategory D] : Psh (Below D 0) where
+  obj x := by
+    exfalso
+    apply x.unop.not_below_zero
+  map {x _} _ _ := by
+    exfalso
+    exact x.unop.not_below_zero
+  map_id := by
+    intro ⟨x⟩
+    exfalso
+    exact x.not_below_zero
+  map_comp := by
+    intro ⟨x⟩
+    exfalso
+    exact x.not_below_zero
 
 def OfRank.as_below {C : Type*} [DirectCategory C] {n : Nat} (i : OfRank C n) : Below C (n+1) where
   point := i.point
   rank_is_lt := by simp [i.rank_is]
+
+instance {C : Type*} [DirectCategory C] {P : C → Prop} : DirectCategory { x : C // P x } where
+  rank := {
+    obj := (rank.obj <| Subtype.val ·)
+    map := rank.map
+    map_comp := by
+      intros
+      simp
+      apply rank.map_comp
+    map_id := by
+      intros
+      simp
+  }
+  reflect_identity := by
+    intro x y f e
+    have := DirectCategory.reflect_identity x.val y.val f e
+    simp
+    simp at this
+    cases this
+    constructor
+    apply Subtype.coe_eq_of_eq_mk
+    repeat assumption
+
+
+@[simp]
+def cast_cast_eq {D : Type*} [DirectCategory D] {n : Nat} (x : Below D (n+1)) (p : rk x ≠ n)
+                 : ↑(x.of_succ_of_rk_ne p) = x := by
+  rfl
+
+def under {C : Type _} [Category C] (x : C) :=
+  Σ y : C, { _f : y ⟶ x // x ≠ y }
+
+instance under_is_category {C : Type _} [ι : Category C] (x : C) : Category (under x) where
+  Hom a b := { f : a.1 ⟶ b.1 // f ≫ b.2.1 = a.2.1 }
+  id a := ⟨𝟙 a.1, by apply ι.id_comp⟩
+  comp {a b c} f g := ⟨f.1 ≫ g.1, by rw [ι.assoc, g.2, f.2]⟩
+  id_comp := by
+    intro a b f
+    simp
+  comp_id := by
+    intro a b f
+    simp
+  assoc := by
+    intros
+    simp
+
+def under.inclusion (C : Type _) [DirectCategory C] (x : C) : under x ⥤ (Below C (rk x)) where
+  obj y := .mk y.fst <| by
+    apply Nat.lt_of_le_of_ne
+    · apply leq_of_map
+      apply y.snd.val
+    · intro rk_y_eq_rk_x
+      apply y.snd.prop
+      have := DirectCategory.reflect_identity _ _ y.snd.val rk_y_eq_rk_x
+      apply congrArg (·.fst) this
+  map {_ _} f := f.val
+  map_id := by
+    intros
+    rfl
+  map_comp := by
+    intros
+    rfl
+
+abbrev MatchingObject.functor {D : Type*} [DirectCategory D] (i : D)
+                              (X : Psh (Below D (rk i))) : Psh (under i) :=
+  (under.inclusion D i).op ⋙ X
+
+def MatchingObject.limit_cone {D : Type*} [DirectCategory D] (i : D)
+                                  (X : Psh (Below D (rk i))) : LimitCone (functor i X) :=
+  getLimitCone <| MatchingObject.functor i X
+
+def MatchingObject {D : Type*} [DirectCategory D] (i : D) (X : Psh (Below D (rk i))) : Type _ :=
+  MatchingObject.limit_cone i X |>.cone |>.pt
+
+section Restrictions
+variable {D : Type*} [DirectCategory D] {n : ℕ}
+
+-- @[simp]
+def restrict₁ (F : Psh (Below D (n+1))) : Psh (Below D n) :=
+  (Below.inclusion _ _).op ⋙ F
+
+@[simp]
+theorem restrict₁.obj_beta (F : Psh (Below D (n+1))) (i : Below D n)
+                           : (restrict₁ F).obj (.op i) = F.obj (.op i) := by
+  rfl
+
+-- @[simp]
+def restrict₂ (i : Below D n) (F : Psh (Below D n)) : Psh (Below D (rk i + 1)) :=
+  Below.forget'.op ⋙ F
+
+-- @[simp]
+def restrict₃ (F : Psh D) : Psh (Below D n) :=
+  Below.forget.op ⋙ F
+
+@[simp]
+theorem restrict₃.obj_beta (F : Psh D) (i : Below D n)
+                           : (restrict₃ F).obj (.op i) = F.obj (.op i.point) := by
+  rfl
+
+@[simp]
+def restrict₃.beta (F : Psh D) (x : Below D n) : (restrict₃ F).obj (.op x) = F.obj (.op x.point) := by
+  rfl
+
+-- @[simp]
+def restrict₄ (i : OfRank D n) (F : Psh (Below D (n+1))) : Psh (Below D (rk i.point + 1)) :=
+  (Below.forget' (i := i.as_below)).op ⋙ F
+
+def func_of_rk_eq (i : D) (p : rk i = n) : Below D (rk i) ⥤ Below D n := by
+  induction p
+  apply Functor.id
+
+@[simp]
+theorem func_of_rk_eq_refl (i : D) (p : rk i = rk i) : func_of_rk_eq i p = Functor.id _ := by
+  rfl
+
+def restrict₅ (i : OfRank D n) (F : Psh (Below D n)) : Psh (Below D (rk i.point)) :=
+  (func_of_rk_eq i.point i.rank_is).op ⋙ F
+
+@[simp]
+theorem restrict₅.refl_beta (i : D) (F : Psh (Below D (rk i))) (p : rk i = rk i) : restrict₅ ⟨i, p⟩ F = F := by
+  rfl
+
+def restrict₆ (F G : Psh D) (η : NatTrans F G) : NatTrans (restrict₃ (n := n) F) (restrict₃ G) where
+  app := by
+    intro ⟨x⟩
+    simp
+    apply η.app
+  naturality := by
+    intros
+    simp
+    apply η.naturality
+end Restrictions
+
+namespace MatchingObject
+  variable {D : Type*} [DirectCategory D] (i : D)
+
+  namespace Canonical
+    variable (X : Psh (Below D (rk i + 1)))
+    def canonical_cone : Cone <| functor i (restrict₁ X) where
+      pt := X.obj <| .op i
+      π := {
+        app := fun j => by
+          simp
+          let ⟨⟨_, f, _⟩⟩ := j
+          unfold under.inclusion
+          simp
+          exact X.map f.op
+        naturality := by
+          intro a b f
+          let ⟨⟨x, xm, x_neq_i⟩⟩ := a
+          let ⟨⟨y, ym, y_neq_i⟩⟩ := b
+          simp
+          unfold under.inclusion
+          simp
+          have h := f.unop.property
+          simp at h
+          show _ ∘ _ = _
+          dsimp
+          conv =>
+            lhs
+            erw [← h]
+          simp
+          conv =>
+            rhs
+            erw [← X.map_comp]
+          rfl
+      }
+
+    def canonical : X.obj (.op i) → MatchingObject i (restrict₁ X) :=
+      limit_cone i (restrict₁ X) |>.isLimit |>.lift <| canonical_cone i X
+
+    section uniqueness
+    variable (f : X.obj (.op i) → MatchingObject i (restrict₁ X))
+
+    def is_unique (q : ∀ j, (limit_cone i (restrict₁ X)).cone.π.app j ∘ f = (canonical_cone i X).π.app j)
+                : f = canonical i X := by
+      unfold canonical
+      apply limit_cone i (restrict₁ X) |>.isLimit |>.uniq (s := canonical_cone i X)
+      assumption
+    end uniqueness
+  end Canonical
+  export Canonical (canonical)
+
+  def eqv_unit_of_card_zero [d : DirectCategory D] (i : D) {ι : Finite (Below D (rank.obj i))}
+                            (X : (Below D (rank.obj i))ᵒᵖ ⥤ Type _) (p : |Below D (rank.obj i)| = 0)
+                            : MatchingObject i X ≃ PUnit := by
+    apply Iso.toEquiv
+    have : IsEmpty (under i)ᵒᵖ := by
+      constructor
+      intro j
+      apply Nat.not_lt_zero
+      apply Fin.isLt
+      rw [← p]
+      apply ι.equiv.toFun
+      constructor
+      rotate_left
+      · exact j.unop.fst
+      · apply Nat.lt_of_le_of_ne
+        · apply PLift.down
+          apply ULift.down
+          apply rank.map
+          apply j.unop.snd.val
+        · intro rank_j_eq_rank_i
+          apply j.unop.snd.prop
+          apply congrArg Sigma.fst
+            <| d.reflect_identity j.unop.fst i j.unop.snd.val rank_j_eq_rank_i
+    apply conePointUniqueUpToIso (t := unit_cone_of_presheaf_over_empty _)
+    · apply LimitCone.isLimit
+    · apply unit_cone_is_limit
+
+end MatchingObject
+
 end Tltt
 end
