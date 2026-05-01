@@ -611,13 +611,26 @@ namespace InductiveDecl
     type : Expr
   deriving Inhabited, Repr
 
-  def ObjConstructor.type_instanciated_with_parameters (self : ObjConstructor)
-                                                       (params : Array Expr) : MetaM Expr := do
-    let lambda_form ← forallBoundedTelescope self.type params.size fun args goal =>
-      mkLambdaFVars args goal
-    let substitued := mkAppN lambda_form params
-    whnfI substitued
+  namespace ObjConstructor
+    def type_instanciated_with_parameters (self : ObjConstructor) (params : Array Expr)
+                                          : MetaM Expr := do
+      let lambda_form ← forallBoundedTelescope self.type params.size fun args goal =>
+        mkLambdaFVars args goal
+      let substitued := mkAppN lambda_form params
+      whnfI substitued
 
+    /--
+      For a constructor like `cons : {α : U} → (hd : α) → (tl : Hello α) → Hello α`, given `α`,
+      `hd` and `tl`, return the arguments to be passed to `Hello`, ie `#[α]` here. Indices may
+      depend on the constructor arguments.
+    -/
+    def target_inner_type (self : ObjConstructor) (arguments : Array Expr) : MetaM (Array Expr) := do
+      let lambda_form ← forallTelescopeReducing self.type fun args target =>
+        mkLambdaFVars args target
+      let substitued ← whnfI <| mkAppN lambda_form arguments
+      return substitued.getAppArgs
+  end ObjConstructor
+  
   structure PartialObjInductiveType where
     /-- Fully qualified name of the inductive type family, ie. `foo.bar.List`. -/
     full_name : Name
@@ -640,6 +653,11 @@ namespace InductiveDecl
     -/
     number_parameters : Nat
   deriving Inhabited, Repr
+
+  namespace ObjInductiveType
+    def level_vars (self : ObjInductiveType) : List Level :=
+      self.level_names.map Level.param
+  end ObjInductiveType
 
   def ObjConstructor.make_inner_decl (constructor : ObjConstructor) (ind_type : ObjInductiveType)
                                      : MetaM Constructor := do
@@ -1231,10 +1249,10 @@ namespace InductiveDecl
             return param
       let inner_metau :=
         .app (.const ``MetaU.mk [u])
-        <| mkAppN (.const ind_type.inner_name <| ind_type.level_names.map Level.param)
+        <| mkAppN (.const ind_type.inner_name ind_type.level_vars)
                   constr_params[:params.size]
       actual_params
-      |> mkAppN (.const constructor.inner_name <| ind_type.level_names.map Level.param)
+      |> mkAppN (.const constructor.inner_name ind_type.level_vars)
       |> mkApp2 (.const ``El.mk [u]) inner_metau
       |> mkLambdaFVars constr_params
     let constr_val ← instantiateMVars constr_val
@@ -1250,19 +1268,77 @@ namespace InductiveDecl
     ensureNoUnassignedMVars constr_decl
     addDecl constr_decl
 
+  def mkElMk (u : Level) (e : Expr) : MetaM Expr := do
+    let e_type ← inferType e
+    let e_type_type ← inferType e_type
+    let .sort (.succ u') := e_type_type
+      | throwError "type's type should be `Type u`{indentExpr e_type}\nnot{indentExpr e_type_type}"
+    unless u == u' do
+      Lean.logInfo m!"Got level {u}, expected level {u'}"
+    let metau := .app (.const ``MetaU.mk [u']) e_type
+    return mkApp2 (.const ``El.mk [u']) metau e
+
+  def with_dewraped_arguments {α} [Inhabited α] (actual_arguments : Array Expr)
+                              (ind_type : ObjInductiveType) (f : Array Expr → TermElabM α)
+                              : TermElabM α := do
+    let mut rewrap_maps : Array (Expr → MetaM Expr) := Array.mkEmpty actual_arguments.size
+    let mut dewraped_argument_decls : Array (_ × BinderInfo × _) := Array.mkEmpty actual_arguments.size
+    for i in [:actual_arguments.size] do
+      let arg := actual_arguments[i]!
+      let arg_type ← inferType arg
+      let name := (← arg.fvarId!.getUserName).appendAfter "'"
+      let no_recursive_case := (
+        pure,
+        (name, .default, fun _ : Array _ => pure arg_type)
+      )
+      let (arg_map, decl) ← forallTelescopeReducing arg_type fun arg_args arg_goal => do
+        -- check whether the argument is of the form
+        --   `∀ ..arg_args, ^(cons ..cons_args)`
+        let .app (.const ``lift [u]) arg_goal_ul := arg_goal | return no_recursive_case
+        let .const arg_goal_ul_fn arg_goal_levels := arg_goal_ul.getAppFn
+          | return no_recursive_case
+        unless arg_goal_ul_fn == ind_type.full_name do
+          return no_recursive_case
+        let dewraped_type (previous_constrs : Array Expr) := do
+          -- We must substitue occurrences of previous arguments of the constructor
+          -- with the newly-created arguments. For instance, if we had a constructor
+          --   cons_case : (x : Hello) → (y : f x) → motive (cons x y)
+          -- it must turn into
+          --   cons'_case : (x' : Hello) → (y' : f (El.mk x')) → motive <| El.mk (cons x' y')
+          --                                        ^^^^^^^^ =: rewrap_map x'
+          whnfI
+          <| (mkAppN · <| ← previous_constrs.zip rewrap_maps
+                          |>.mapM fun (constr, map) => map constr)
+          <| ← mkLambdaFVars actual_arguments[:i].toArray
+          <| ← mkForallFVars arg_args
+          <| mkAppN (.const ind_type.inner_name arg_goal_levels)
+          <| arg_goal_ul.getAppArgs
+        -- `rewrap_map` takes a free variable bound to the unwrap constructor, and
+        -- rewraps it. The goal is to use substitute the rewraped version for
+        -- occurrences of the plain argument with expressions that only depend on its
+        -- unwraped counterpart. See the above example for when this map would be
+        -- used.
+        let rewrap_map cons' := do
+          let type ← inferType cons'
+          forallTelescopeReducing type fun a g => do
+            mkForallFVars a
+            <| ← mkElMk u
+            <| mkAppN g a
+        return (rewrap_map, (name, .default, dewraped_type))
+      rewrap_maps := rewrap_maps.push arg_map
+      dewraped_argument_decls := dewraped_argument_decls.push decl
+    withLocalDecls dewraped_argument_decls f
+
   def make_recursor (ind_type : ObjInductiveType) (params : Array Expr) : TermElabM Unit := do
     -- The type of the recursor is
     --   ∀ ..parameters, ∀ motive, ∀ ..constructors, ∀ ..indices, ∀ x, motive indices x
     -- where the type of motive is
     --   ∀ ..indices, ∀ x, U
-    Lean.logInfo m!"params = {params}\nnumber_parameters = {ind_type.number_parameters}"
     let indices := params[ind_type.number_parameters:]
     let parameters := params[:ind_type.number_parameters]
-    Lean.logInfo m!"indices = {indices}\nparameters = {parameters}"
     let motive_level_name ← mkFreshId
     let motive_level := Level.param motive_level_name
     let level_names := motive_level_name :: ind_type.level_names
-    let level_vars := level_names.map Level.param
     let level_vars_for_inner := (.succ motive_level) :: ind_type.level_names.map Level.param
     let motive_type ←
       mkForallFVars indices
@@ -1326,7 +1402,7 @@ namespace InductiveDecl
           goal_type ← mkForallFVars #[motive] goal_type
           goal_type ← mkForallFVars parameters goal_type
           let rec_type ← instantiateMVars goal_type
-          Lean.logInfo m!"rec_type = {rec_type}"
+          trace[Tltt.inductiveₒ.recₒ] m!"rec_type.{level_names} = {rec_type}"
           -- build goal value
           let mut goal_value := Expr.const (ind_type.inner_name ++ `rec) level_vars_for_inner
           goal_value := mkAppN goal_value parameters
@@ -1347,16 +1423,19 @@ namespace InductiveDecl
           goal_value := mkAppN goal_value <| ← constructors.mapM fun constructor_case => do
             let constructor := constr_by_name.find! (← constructor_case.fvarId!.getUserName)
             -- `constructor_case` might be an `fvar` `cons` that looks like
-            --   cons : (hd : α) → (tl : Hello α) → motive tl → motive (Hello.cons hd tl)
+            --   cons : (hd : α) → (tl : Hello α) → ^(motive tl) → ^(motive (Hello.cons hd tl))
+            -- we must produce a `cons'` whose type is
+            --   cons' : (hd' : α) → (tl' : Hello_priv α) → ^(motive (El.mk tl'))
+            --                     → ^(motive (El.mk <| Hello_priv.cons hd' tl'))
             -- we have three things to do:
-            --  - dewrap the `tl` argument into, say, `tl'`
-            --  - rewrap it before passing it into its induction hypothesis, ie. `motive tl`
-            --    should become `motive (El.mk tl')`
-            --  - change the constructor in the target of the constructor to the underlying,
-            --    private counterpart
+            --  1. dewrap the `tl` argument into, say, `tl'`
+            --  2. rewrap it before passing it into its induction hypothesis, ie. `motive tl`
+            --     should become `motive (El.mk tl')`
+            --  3. change the constructor in the target of the constructor to the underlying,
+            --     private counterpart
             -- In the end, we will have the following:
             --   cons : (hd' : α) → (tl' : Hello_priv α) → motive (El.mk tl')
-            --          → motive (El.mk <| Hello_priv.cons hd' tl')
+            --                    → motive (El.mk <| Hello_priv.cons hd' tl')
             -- We start by introducing the "dewraped" version of every argument, ie. `hd'` and
             -- `tl'`. Then, we modify the target. Finally, we substitue every remaining
             -- occurrence of `hd` and `tl` in the induction hypothesis + target type by the
@@ -1367,11 +1446,30 @@ namespace InductiveDecl
             let arity ← forallTelescopeReducing constructor.type fun pars _ => do
               return pars.size - ind_type.number_parameters
             let constr_type ← constructor_case.fvarId!.getType
-            forallTelescopeReducing constr_type fun constr_args motive_goal => do
+            forallTelescopeReducing constr_type fun constr_args _ => do
               let actual_arguments := constr_args[:arity]
               let induction_hypothesis := constr_args[arity:]
-              return ()
-            return constructor_case
+              with_dewraped_arguments actual_arguments ind_type fun dewraped_arguments => do
+                let rewraped_arguments ← dewraped_arguments.mapM fun arg => do
+                  let type ← inferType arg
+                  let .sort (.succ u) ← inferType type
+                    | throwError "type's type should be `Type u`{indentExpr type}"
+                  forallTelescopeReducing type fun arg_args arg_goal => do
+                    let .const name _ := arg_goal.getAppFn | return arg
+                    unless name == ind_type.inner_name do
+                      return arg
+                    mkLambdaFVars arg_args
+                    <| ← mkElMk u
+                    <| mkAppN arg arg_args
+                let actual_goal :=
+                  mkAppN constructor_case
+                  <| actual_arguments ++ induction_hypothesis
+                let with_ih ←
+                  whnfI
+                  <| (mkAppN · rewraped_arguments)
+                  <| ← mkLambdaFVars actual_arguments
+                  <| ← mkLambdaFVars induction_hypothesis actual_goal
+                mkLambdaFVars dewraped_arguments with_ih
           goal_value := mkAppN goal_value indices
           goal_value :=
             let metau :=
@@ -1385,7 +1483,7 @@ namespace InductiveDecl
           goal_value ← mkLambdaFVars #[motive] goal_value
           goal_value ← mkLambdaFVars parameters goal_value
           let rec_value ← instantiateMVars goal_value
-          Lean.logInfo m!"rec_value = {rec_value}"
+          trace[Tltt.inductiveₒ.recₒ] m!"rec_value = {rec_value}"
           let def_decl := {
             value := rec_value
             name := ind_type.full_name ++ `recₒ
@@ -1520,24 +1618,19 @@ end Tltt.Hott
 namespace examples
 open Tltt.Hott
 
-set_option pp.explicit true in
 section
 inductiveₒ Hello (α : U) : U where
   | nil : Hello α
   | cons (hd : α) (tl : Hello α) : Hello α
 end
 
-inductive ListS.{u} (α : Type u) : Nat → Type u where
-  | nil : ListS α 0
-  | cons {n : Nat} (hd : α) (tl : ListS α n) : ListS α (n+1)
+-- inductive ListS.{u} (α : Type u) : Nat → Type u where
+--   | nil : ListS α 0
+--   | cons {n : Nat} (hd : α) (tl : ListS α n) : ListS α (n+1)
 
-#check ListS.rec
-
-inductive BTree : Nat → Type _ where
-  | nil : BTree 1
-  | node {n m : Nat} (left : BTree n) (right : BTree m) : BTree (n+m+1)
-
-#check BTree.rec
+-- inductive BTree : Nat → Type _ where
+--   | nil : BTree 1
+--   | node {n m : Nat} (left : BTree n) (right : BTree m) : BTree (n+m+1)
 
 /-
 inductive_obj Seq (α : U) : U.{u} where
