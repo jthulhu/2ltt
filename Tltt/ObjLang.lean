@@ -36,11 +36,13 @@ structure El (α : MetaU) where
   private intoU : α.intoType
 
 abbrev liftedU.{i} : Type (i+1) := El.{i+1} Ty.{i}
-def U : liftedU := El.mk Ty
+def Typeₒ : liftedU := El.mk Ty
 
-example : U.intoU = Ty := by rfl
 
-private def U.fromType.{i} (α : Type i) : liftedU.{i} :=
+
+example : Typeₒ.intoU = Ty := by rfl
+
+private def Typeₒ.fromType.{i} (α : Type i) : liftedU.{i} :=
   El.mk (MetaU.mk α)
 
 -- Tm
@@ -74,20 +76,21 @@ instance : CoeSort liftedU.{u} (Type u) where
   coe α := ^α
 
 -- ^  ≡ Tm
--- U.{i} ≡ Ty
+-- Typeₒ.{i} ≡ Ty
 
 -- Tm (Ty i) ⇒ Set i
 
-instance : CoeSort ^U.{u} (Type u) where
+instance : CoeSort ^Typeₒ.{u} (Type u) where
   coe α := ^α
 end
 
-example : ^U = liftedU := by rfl
+universe u in
+example : ^Typeₒ.{u} = liftedU.{u} := by rfl
 
 -- Boolean type
 
-def Boolₒ : U :=
-  U.fromType Bool
+def Boolₒ : Typeₒ :=
+  Typeₒ.fromType Bool
 
 namespace Boolₒ
   def trueₒ : Boolₒ :=
@@ -96,7 +99,7 @@ namespace Boolₒ
   def falseₒ : Boolₒ :=
     El.mk false
 
-  protected def elim {P : Boolₒ → U} (b : Boolₒ) (t : P trueₒ) (f : P falseₒ) : P b :=
+  protected def elim {P : Boolₒ → Typeₒ} (b : Boolₒ) (t : P trueₒ) (f : P falseₒ) : P b :=
     match b with
     | ⟨true⟩ => t
     | ⟨false⟩ => f
@@ -105,11 +108,11 @@ export Boolₒ (trueₒ falseₒ)
 
 -- Pi types
 
-def Pi (α : U) (β : α → U) : U :=
-  U.fromType ((a : α) → β a)
+def Pi (α : Typeₒ) (β : α → Typeₒ) : Typeₒ :=
+  Typeₒ.fromType ((a : α) → β a)
 
 namespace Pi
-  variable {α : U} {β : α → U}
+  variable {α : Typeₒ} {β : α → Typeₒ}
 
   def lam (f : (a : α) → β a) : Pi α β :=
     El.mk f
@@ -160,7 +163,7 @@ def unexpand_pi : Unexpander
 
 namespace Pi
   section
-  variable {α : U} {β : α → U}
+  variable {α : Typeₒ} {β : α → Typeₒ}
   variable (f : (a : α) → β a) (g : (a : α) →ₒ β a)
 
   @[simp]
@@ -170,54 +173,54 @@ namespace Pi
   theorem lam_app : lam (app g) = g := by rfl
   end
 
-  def eta {α : U} {β : α → U} (f : Pi α β) : (funₒ x => f x) = f := by
+  def eta {α : Typeₒ} {β : α → Typeₒ} (f : Pi α β) : (funₒ x => f x) = f := by
     rfl
 end Pi
 
 -- Arrow type
-def Funₒ (α : U) (β : U) : U :=
+def Funₒ (α : Typeₒ) (β : Typeₒ) : Typeₒ :=
   Pi α (fun _ => β)
 
 infixr:25 " →ₒ " => Funₒ
 
-instance {α β : U} : CoeFun (α →ₒ β) (fun _ => α → β) where
+instance {α β : Typeₒ} : CoeFun (α →ₒ β) (fun _ => α → β) where
   coe := Pi.app
 
-instance {α β : U} : Coe (α →ₒ β) (α → β) where
+instance {α β : Typeₒ} : Coe (α →ₒ β) (α → β) where
   coe := Pi.app
 
-instance {α β : U} : Coe (α → β) (α →ₒ β) where
+instance {α β : Typeₒ} : Coe (α → β) (α →ₒ β) where
   coe := Pi.lam
 
 -- Sigma types
-def Sigmaₒ (α : U) (β : α → U) : U :=
-  U.fromType (Σ a : α, β a)
+def Sigmaₒ (α : Typeₒ) (β : α → Typeₒ) : Typeₒ :=
+  Typeₒ.fromType (Σ a : α, β a)
 
 namespace Sigmaₒ
   @[match_pattern, inline]
-  def mk {α : U} {β : α → U} (x : α) (y : β x) : Sigmaₒ α β :=
+  def mk {α : Typeₒ} {β : α → Typeₒ} (x : α) (y : β x) : Sigmaₒ α β :=
     El.mk (Sigma.mk x y)
 
   @[match_pattern, inline]
-  def pr₁ {α : U} {β : α → U} (x : Sigmaₒ α β) : α :=
+  def pr₁ {α : Typeₒ} {β : α → Typeₒ} (x : Sigmaₒ α β) : α :=
     x.intoU.1
 
   postfix:max "₊1" => pr₁
 
   @[match_pattern, inline]
-  def pr₂ {α : U} {β : α → U} (x : Sigmaₒ α β) : β (pr₁ x) :=
+  def pr₂ {α : Typeₒ} {β : α → Typeₒ} (x : Sigmaₒ α β) : β (pr₁ x) :=
     x.intoU.2
 
   postfix:max "₊2" => pr₂
 
   @[simp]
-  def pr₁.beta {α : U} {β : α → U} (x : α) (y : β x) : (mk x y)₊1 = x := by rfl
+  def pr₁.beta {α : Typeₒ} {β : α → Typeₒ} (x : α) (y : β x) : (mk x y)₊1 = x := by rfl
 
   @[simp]
-  def pr₂.beta {α : U} {β : α → U} (x : α) (y : β x) : (mk x y)₊2 = y := by rfl
+  def pr₂.beta {α : Typeₒ} {β : α → Typeₒ} (x : α) (y : β x) : (mk x y)₊2 = y := by rfl
 
   -- @[simp]
-  def eta {α : U} {β : α → U} (x : Sigmaₒ α β) : mk x₊1 x₊2 = x := by rfl
+  def eta {α : Typeₒ} {β : α → Typeₒ} (x : Sigmaₒ α β) : mk x₊1 x₊2 = x := by rfl
 end Sigmaₒ
 export Sigmaₒ (pr₁ pr₂)
 
@@ -242,8 +245,8 @@ def unexpand_sigma_mk : Unexpander
 
 -- Coproduct
 
-def Sumₒ (α : U) (β : U) : U :=
-  U.fromType (α ⊕ β)
+def Sumₒ (α : Typeₒ) (β : Typeₒ) : Typeₒ :=
+  Typeₒ.fromType (α ⊕ β)
   
 infixr:30 " ⊕ₒ " => Sumₒ
 
@@ -254,14 +257,14 @@ def unexpand_plus : Unexpander
 
 namespace Sumₒ
   @[match_pattern]
-  def inlₒ {α : U} {β : U} (a : α) : α ⊕ₒ β :=
+  def inlₒ {α : Typeₒ} {β : Typeₒ} (a : α) : α ⊕ₒ β :=
     El.mk (Sum.inl a)
 
   @[match_pattern]
-  def inrₒ {α : U} {β : U} (b : β) : α ⊕ₒ β :=
+  def inrₒ {α : Typeₒ} {β : Typeₒ} (b : β) : α ⊕ₒ β :=
     El.mk (Sum.inr b)
 
-  protected def elim {α : U} {β : U} {P : α ⊕ₒ β → U} (l : (a : α) → P (inlₒ a)) (r : (b : β) → P (inrₒ b))
+  protected def elim {α : Typeₒ} {β : Typeₒ} {P : α ⊕ₒ β → Typeₒ} (l : (a : α) → P (inlₒ a)) (r : (b : β) → P (inrₒ b))
     (x : α ⊕ₒ β) : P x :=
     match x with
     | ⟨.inl a⟩ => l a
@@ -271,7 +274,7 @@ export Sumₒ (inlₒ inrₒ)
 
 -- Product
 
-def Prodₒ (α : U) (β : U) : U :=
+def Prodₒ (α : Typeₒ) (β : Typeₒ) : Typeₒ :=
   Sigmaₒ α (fun _ => β)
 
 infixr:35 " ×ₒ " => Prodₒ
@@ -294,8 +297,8 @@ private def Id.Inner.elim.{u₁, u₂} {α : Type u₁} {P : (x : α) → (y : �
 private def Id.Inner.trans.{i} {α : Type i} (x y z : α) : Inner x y → Inner y z → Inner x z
   | refl _, refl _ => refl _
 
-def Id.{i} {α : U.{i}} (x y : α) : U.{i} :=
-  U.fromType.{i} (Id.Inner x.intoU y.intoU)
+def Id.{i} {α : Typeₒ.{i}} (x y : α) : Typeₒ.{i} :=
+  Typeₒ.fromType.{i} (Id.Inner x.intoU y.intoU)
 
 infix:50 " =ₒ " => Id
 
@@ -306,10 +309,10 @@ def unexpand_id : Unexpander
 
 namespace Id
   @[match_pattern]
-  def refl {α : U} (x : α) : x =ₒ x :=
+  def refl {α : Typeₒ} (x : α) : x =ₒ x :=
     ⟨Inner.refl x.intoU⟩
 
-  protected def elim {α : U} {P : (x : α) → (y : α) → x =ₒ y → U} (h : (x : α) → P x x (refl x)) (x : α)
+  protected def elim {α : Typeₒ} {P : (x : α) → (y : α) → x =ₒ y → Typeₒ} (h : (x : α) → P x x (refl x)) (x : α)
            (y : α) (p : x =ₒ y) : P x y p := by
     apply El.mk
     apply Inner.elim (P := fun a b q => (P (El.mk a) (El.mk b) (El.mk q)).intoU.intoType)
@@ -318,17 +321,17 @@ namespace Id
     apply h
 
   @[simp]
-  def elim.beta {α : U} {P : (x : α) → (y : α) → x =ₒ y → U} (h : (x : α) → P x x (refl x))
+  def elim.beta {α : Typeₒ} {P : (x : α) → (y : α) → x =ₒ y → Typeₒ} (h : (x : α) → P x x (refl x))
                 (x : α) : Id.elim h x x (refl x) = h x := by
     rfl
 
-  def symm {α : U} (x y : α) (p : x =ₒ y) : y =ₒ x :=
+  def symm {α : Typeₒ} (x y : α) (p : x =ₒ y) : y =ₒ x :=
     Id.elim (P := fun x y _ => y =ₒ x) refl x y p
 
   @[simp]
-  theorem symm.beta {α : U} (a : α) : symm a a (refl a) = refl a := by rfl
+  theorem symm.beta {α : Typeₒ} (a : α) : symm a a (refl a) = refl a := by rfl
 
-  def inv {α : U} {x y : α} (p : x =ₒ y): y =ₒ x :=
+  def inv {α : Typeₒ} {x y : α} (p : x =ₒ y): y =ₒ x :=
     symm x y p
 
   postfix:max "⁻¹ " => Id.inv
@@ -338,12 +341,12 @@ namespace Id
     | `($_ $x) => ``($x⁻¹)
     | _ => throw ()
 
-  def trans {α : U} (x y z : α) (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z := by
+  def trans {α : Typeₒ} (x y z : α) (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z := by
     apply El.mk
     apply Inner.trans <;> apply El.intoU <;> assumption
 
   @[match_pattern]
-  def concat {α : U} {x y z : α} (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z :=
+  def concat {α : Typeₒ} {x y z : α} (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z :=
     trans x y z p₁ p₂
 
   infixr:60 " ⬝ " => concat
@@ -353,7 +356,7 @@ namespace Id
     | `($_ $p₁ $p₂) => ``($p₁ ⬝ $p₂)
     | _ => throw ()
 
-  def subst {α : U} {P : α → U} {a b : α} (h : a =ₒ b) : P a → P b := by
+  def subst {α : Typeₒ} {P : α → Typeₒ} {a b : α} (h : a =ₒ b) : P a → P b := by
     apply Pi.app
     apply Id.elim (P := fun x y _ => P x →ₒ P y)
     intro x
@@ -362,20 +365,20 @@ namespace Id
     exact h
 
   @[simp]
-  theorem subst.beta {α : U} {motive : α → U} {a : α} : @subst α motive a a (refl _) = id :=
+  theorem subst.beta {α : Typeₒ} {motive : α → Typeₒ} {a : α} : @subst α motive a a (refl _) = id :=
     rfl
 
-  def mp {α β : U} (h : α =ₒ β) (a : α) : β :=
+  def mp {α β : Typeₒ} (h : α =ₒ β) (a : α) : β :=
     subst (P := fun x => x) h a
 
   @[simp]
-  theorem mp.beta {α : U} : mp (refl α) = id := by rfl
+  theorem mp.beta {α : Typeₒ} : mp (refl α) = id := by rfl
 
-  def mpr {α β : U} (h : α =ₒ β) (b : β) : α :=
+  def mpr {α β : Typeₒ} (h : α =ₒ β) (b : β) : α :=
     mp (symm α β h) b
 
   @[simp]
-  theorem mpr.beta {α : U} : mpr (refl α) = id := by rfl
+  theorem mpr.beta {α : Typeₒ} : mpr (refl α) = id := by rfl
 end Id
 
 namespace InductiveDecl
@@ -546,7 +549,7 @@ namespace InductiveDecl
       of the private, underlying inductive type.
     -/
     inner_name : Name
-    /-- Type of the constructor, ie. `nil : {α : U.{u}} → List.{u} α` -/
+    /-- Type of the constructor, ie. `nil : {α : Typeₒ.{u}} → List.{u} α` -/
     type : Expr
   deriving Inhabited, Repr
 
@@ -559,7 +562,7 @@ namespace InductiveDecl
       whnfI substitued
 
     /--
-      For a constructor like `cons : {α : U} → (hd : α) → (tl : Hello α) → Hello α`, given `α`,
+      For a constructor like `cons : {α : Typeₒ} → (hd : α) → (tl : Hello α) → Hello α`, given `α`,
       `hd` and `tl`, return the arguments to be passed to `Hello`, ie `#[α]` here. Indices may
       depend on the constructor arguments.
     -/
@@ -581,7 +584,7 @@ namespace InductiveDecl
     inner_name : Name
     /-- The constructors of the inductive type. -/
     constructors : List ObjConstructor
-    /-- The type of the family of inductive types, ie `List.{u} : U.{u} → U.{u}`. -/
+    /-- The type of the family of inductive types, ie `List.{u} : Typeₒ.{u} → Typeₒ.{u}`. -/
     type : Expr
   deriving Inhabited, Repr
 
@@ -618,11 +621,11 @@ namespace InductiveDecl
     }
 
   def liftedU? : Expr → Option Level
-    | .app (.const ``lift [_]) (.const ``U [u])
+    | .app (.const ``lift [_]) (.const ``Typeₒ [u])
     | .app (.const ``El [.succ _])
            (.app (.app (.const ``El.intoU [.succ (.succ _)])
                        (.const ``Ty [.succ _]))
-                 (.const ``U [u])) => some u
+                 (.const ``Typeₒ [u])) => some u
     | _ => none
 
   def ObjInductiveType.make_inner_decl (ind_type : ObjInductiveType) : MetaM InductiveType := do
@@ -745,7 +748,7 @@ namespace InductiveDecl
     let type ← elabTerm stx (Expr.const ``liftedU [u])
     withRef stx <| ensure_obj_type type
 
-  /-- Check that the type is of the form α₁ → α₂ → ⋯ → αₙ → U, where every has to be an
+  /-- Check that the type is of the form α₁ → α₂ → ⋯ → αₙ → Typeₒ, where every has to be an
       object-level type. -/
   partial def is_obj_type_former (type : Expr) : MetaM Bool := do
     match ← whnfD type with
@@ -764,7 +767,7 @@ namespace InductiveDecl
   /-- Elaborate the header of the declaration, checking for the following properties:
       - all indices must be object-level types (lifted object-level types **not** accepted)
       - parameters can be any-level types
-      - the type of an element of the inductive family must be an object-level type, ie. in U -/
+      - the type of an element of the inductive family must be an object-level type, ie. in Typeₒ -/
   def elab_header (view : ObjInductiveView) : TermElabM ElabHeaderResult := do
     -- do not attempt to add auto-bound implicits for occurrences of the inductive type in its
     -- header declaration, ie. if an inductive type `Header` uses `Header` in its parameters or
@@ -792,7 +795,7 @@ namespace InductiveDecl
           let type ← withAutoBoundImplicit do
             let type ← elabType type_stx
             unless ← is_obj_type_former type do
-              throwErrorAt type_stx "invalid object-inductive type, resultant type is not U"
+              throwErrorAt type_stx "invalid object-inductive type, resultant type is not Typeₒ"
             synthesizeSyntheticMVarsNoPostponing
             let indices ← addAutoBoundImplicits #[]
             mkForallFVars indices type
@@ -899,7 +902,7 @@ namespace InductiveDecl
 
   /--
     Retrieve the object-level universe in which the inductive type lives. Concretely, if we
-    define a value with type `α₁ → α₂ → ⋯ → αₙ → U.{u}`, return `u`.
+    define a value with type `α₁ → α₂ → ⋯ → αₙ → Typeₒ.{u}`, return `u`.
   -/
   def get_obj_resulting_universe (ind_type : PartialObjInductiveType) : MetaM Level :=
   forallTelescopeReducing ind_type.type fun _ r => do
@@ -917,7 +920,7 @@ namespace InductiveDecl
     return .app (.const ``lift [u]) <| mkAppN cst params
   /--
     Retrieve the Lean-level universe in which the definition lives. Concretely, if we define
-    a value with type `α₁ → α₂ → ⋯ → αₙ → U.{u}`, return `u+1`.
+    a value with type `α₁ → α₂ → ⋯ → αₙ → Typeₒ.{u}`, return `u+1`.
   -/
   def get_resulting_universe_as_sort (ind_type : PartialObjInductiveType) : TermElabM Level := do
     let u ← get_obj_resulting_universe ind_type
@@ -1079,7 +1082,7 @@ namespace InductiveDecl
     return { ind_type with constructors := ctors }
 
   /--
-    For an inductive declaration `ind_type` that produces a value of type `α₁ → α₂ → ⋯ → αₙ → U`,
+    For an inductive declaration `ind_type` that produces a value of type `α₁ → α₂ → ⋯ → αₙ → Typeₒ`,
     return `n`.
 
     This corresponds to the number of parameters plus the number of indices of the inductive
@@ -1282,7 +1285,7 @@ namespace InductiveDecl
     -- The type of the recursor is
     --   ∀ ..parameters, ∀ motive, ∀ ..constructors, ∀ ..indices, ∀ x, motive indices x
     -- where the type of motive is
-    --   ∀ ..indices, ∀ x, U
+    --   ∀ ..indices, ∀ x, Typeₒ
     let indices := params[ind_type.number_parameters:]
     let parameters := params[:ind_type.number_parameters]
     let motive_level_name ← mkFreshId
@@ -1522,7 +1525,7 @@ namespace InductiveDecl
             let u ← get_obj_resulting_universe ind_type.toPartialObjInductiveType
             let ind_type_value ←
               mkAppN (.const ind_type.inner_name <| ind_type.level_names.map Level.param) params
-              |> Expr.app (.const ``U.fromType [u])
+              |> Expr.app (.const ``Typeₒ.fromType [u])
               |> mkLambdaFVars params
             let ind_type_value ← instantiateMVars ind_type_value
             let definition_val := {
@@ -1572,30 +1575,30 @@ end Tltt.Hott
 -- open Tltt.Hott
 
 -- section
--- inductiveₒ MyList (α : U) : U where
+-- inductiveₒ MyList (α : Typeₒ) : Typeₒ where
 --   | nil : MyList α
 --   | cons (hd : α) (tl : MyList α) : MyList α
 
--- inductiveₒ MyId {α : U} : α → α → U where
+-- inductiveₒ MyId {α : Typeₒ} : α → α → Typeₒ where
 --   | refl (x : α) : MyId x x
 
--- inductiveₒ Natₒ : U where
+-- inductiveₒ Natₒ : Typeₒ where
 --   | zero : Natₒ
 --   | succ (n : Natₒ) : Natₒ
 
 -- def Natₒ.plus (n m : Natₒ) : Natₒ :=
 --   Natₒ.recₒ n (fun _ n_p_m' => succ n_p_m') m
 
--- inductiveₒ Vecₒ (α : U) : Natₒ → U where
+-- inductiveₒ Vecₒ (α : Typeₒ) : Natₒ → Typeₒ where
 --   | nil : Vecₒ α Natₒ.zero
 --   | cons (n : Natₒ) (v : Vecₒ α n) : Vecₒ α (Natₒ.succ n)
 
 -- /-- `BTree n` is a binary tree with `n` nodes. -/
--- inductiveₒ BTree : Natₒ → U where
+-- inductiveₒ BTree : Natₒ → Typeₒ where
 --   | leaf : BTree Natₒ.zero
 --   | node (n m : Natₒ) (left : BTree n) (right : BTree m) : BTree (Natₒ.plus (Natₒ.plus n m) (Natₒ.succ Natₒ.zero))
 
--- inductiveₒ InfTree : U where
+-- inductiveₒ InfTree : Typeₒ where
 --   | nil : InfTree
 --   | node (children : Natₒ → InfTree) : InfTree
 -- end
@@ -1609,7 +1612,7 @@ end Tltt.Hott
 -- --   | node {n m : Nat} (left : BTree n) (right : BTree m) : BTree (n+m+1)
 
 -- /-
--- inductive_obj Seq (α : U) : U.{u} where
+-- inductive_obj Seq (α : Typeₒ) : Typeₒ.{u} where
 --                             ^^^^^ this must be replaced by `Type u`
 --   | nil : Seq α
 --           ^^^ this must be replaced by `Inner`
@@ -1618,48 +1621,48 @@ end Tltt.Hott
 --                         these must be replaced by `Inner`
 -- -/
 
--- private inductive Seq.Inner (α : U) : Type _ where
+-- private inductive Seq.Inner (α : Typeₒ) : Type _ where
 --   | nil : Inner α
 --   | cons (hd : α) (tl : Inner α) : Inner α
 
--- def Seq.{u₁} (α : U.{u₁}) : U.{u₁} :=
---   U.fromType <| Seq.Inner α
+-- def Seq.{u₁} (α : Typeₒ.{u₁}) : Typeₒ.{u₁} :=
+--   Typeₒ.fromType <| Seq.Inner α
 
 -- namespace Seq
 --   @[match_pattern]
---   def nil.{u} {α : U.{u}} : Seq.{u} α :=
+--   def nil.{u} {α : Typeₒ.{u}} : Seq.{u} α :=
 --     El.mk.{u} Inner.nil.{u}
 
 --   @[match_pattern]
---   def cons.{u} {α : U.{u}} (hd : α) (tl : Seq.{u} α) : Seq.{u} α :=
---     El.mk.{u} <| Inner.cons.{u} hd (El.intoU.{u} tl)
+--   def cons.{u} {α : Typeₒ.{u}} (hd : α) (tl : Seq.{u} α) : Seq.{u} α :=
+--     El.mk.{u} <| Inner.cons.{u} hd (El.intoTypeₒ.{u} tl)
 
---   protected def recₒ.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--   protected def recₒ.{u, u₁} {α : Typeₒ.{u₁}} {motive : Seq.{u₁} α → Typeₒ.{u}} (nil_case : motive nil)
 --                      (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl)) (x : Seq.{u₁} α)
 --                      : motive x :=
 --     @Inner.rec.{u+1, u₁} α (fun x : Inner α => motive (El.mk x)) nil_case (fun hd tl tl_ih => cons_case hd (El.mk tl) tl_ih) x.intoU
 
 --   @[simp]
---   protected def recₒ.beta.nil.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--   protected def recₒ.beta.nil.{u, u₁} {α : Typeₒ.{u₁}} {motive : Seq.{u₁} α → Typeₒ.{u}} (nil_case : motive nil)
 --                              (const_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl))
 --                              : @Seq.recₒ.{u, u₁} α motive nil_case const_case nil = nil_case :=
 --     rfl
 
 --   @[simp]
---   protected def recₒ.beta.cons.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--   protected def recₒ.beta.cons.{u, u₁} {α : Typeₒ.{u₁}} {motive : Seq.{u₁} α → Typeₒ.{u}} (nil_case : motive nil)
 --                               (const_case : (hd : α) → (tl : Seq.{u₁} α) → motive tl → motive (cons hd tl))
 --                               (hd : α) (tl : Seq.{u₁} α)
 --                               : @Seq.recₒ.{u, u₁} α motive nil_case const_case (cons hd tl)
 --                                 = const_case hd tl (Seq.recₒ (motive := motive) nil_case const_case tl) :=
 --     rfl
 
---   protected def casesOnₒ.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}} (nil_case : motive nil)
+--   protected def casesOnₒ.{u, u₁} {α : Typeₒ.{u₁}} {motive : Seq.{u₁} α → Typeₒ.{u}} (nil_case : motive nil)
 --                                   (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
 --                                   (x : Seq.{u₁} α) : motive x :=
 --     @Seq.recₒ α motive nil_case (fun hd tl _ => cons_case hd tl) x
 
 --   @[simp]
---   protected def casesOnₒ.beta.nil.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}}
+--   protected def casesOnₒ.beta.nil.{u, u₁} {α : Typeₒ.{u₁}} {motive : Seq.{u₁} α → Typeₒ.{u}}
 --                                            (nil_case : motive nil)
 --                                            (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
 --                                            : @Seq.casesOnₒ.{u, u₁} α motive nil_case cons_case nil
@@ -1667,7 +1670,7 @@ end Tltt.Hott
 --     rfl
 
 --   @[simp]
---   protected def casesOnₒ.beta.cons.{u, u₁} {α : U.{u₁}} {motive : Seq.{u₁} α → U.{u}}
+--   protected def casesOnₒ.beta.cons.{u, u₁} {α : Typeₒ.{u₁}} {motive : Seq.{u₁} α → Typeₒ.{u}}
 --                                             (nil_case : motive nil)
 --                                             (cons_case : (hd : α) → (tl : Seq.{u₁} α) → motive (cons hd tl))
 --                                             (hd : α) (tl : Seq.{u₁} α)

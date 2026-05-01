@@ -125,11 +125,11 @@ namespace Revert
 end Revert
 
 noncomputable section
-example {α β : U} (h : β =ₒ α) (x : α) : β := by
+example {α β : Typeₒ} (h : β =ₒ α) (x : α) : β := by
   rewriteₒ [h]
   assumption
 
-example {α β : U} (h : α =ₒ β) (x : α) : β := by
+example {α β : Typeₒ} (h : α =ₒ β) (x : α) : β := by
   rewriteₒ [← h]
   assumption
 end
