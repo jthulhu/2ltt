@@ -2,7 +2,7 @@ namespace Hott
 
 -- Universe setup
 --
--- The object language universe hierarchy is `U.{i}`. If `α : U.{i}`, `↑α : Type i`, where `↑` is
+-- The object language universe hierarchy is `U.{i}`. If `α : ^U.{i}`, `^α : Type i`, where `^` is
 -- the lifting operator.
 --
 -- `MetaU`, `Ty` and `El` are implementation details required to bootstrap this. For coherency
@@ -22,19 +22,36 @@ def Ty.{i} : MetaU.{i+1} :=
 structure El (α : MetaU) where
   private mk ::
   private intoU : α.intoType
-  
-abbrev U.{i} : Type (i+1) := El Ty.{i}
 
-private def U.fromType.{i} (α : Type i) : U.{i} :=
+abbrev liftedU.{i} : Type (i+1) := El Ty.{i}
+def U : liftedU := El.mk Ty
+
+example : U.intoU = Ty := by rfl
+
+private def U.fromType.{i} (α : Type i) : liftedU.{i} :=
   El.mk (MetaU.mk α)
 
-def lift.{i} (α : U.{i}) : Type i := El α.intoU
+-- Tm
+def lift.{i} (α : liftedU.{i}) : Type i := El α.intoU
 
 -- prefix:max " ↑ " => lift
 prefix:max "^" => lift
 
-instance : CoeSort U.{i} (Type i) where
+set_option pp.universes true in
+#check ^U
+
+instance : CoeSort liftedU.{i} (Type i) where
   coe α := ^α
+
+-- ^  ≡ Tm
+-- U.{i} ≡ Ty
+
+-- Tm (Ty i) ⇒ Set i
+
+instance : CoeSort ^U.{i} (Type i) where
+  coe α := ^α
+
+example : ^U = liftedU := by rfl
 
 -- Boolean type
 
@@ -42,9 +59,11 @@ def B : U :=
   U.fromType Bool
 
 namespace B
+  @[match_pattern]
   def true' : B :=
     El.mk true
 
+  @[match_pattern]
   def false' : B :=
     El.mk false
 
@@ -69,33 +88,51 @@ namespace Pi
   def app (f : Pi α β) (a : α) : β a :=
     f.intoU a
 
-  infixl:50 " @∘ " => app
-  infixr:50 " $∘ " => app
+  infixl:50 " @ₒ " => app
+  infixr:50 " $ₒ " => app
 
   instance : CoeFun (Pi α β) (fun _ => (x : α) → β x) where
     coe := app
   end
 end Pi
 
-syntax (priority := high) "Λ" ident "=>" term : term
-syntax (priority := high) "Λ" ident ":" term "=>" term : term
+syntax obj_fun_binder := "Λ" <|> "λₒ" <|> "funₒ"
+syntax (priority := high) obj_fun_binder ident (":" term)? "=>" term : term
 macro_rules
-  | `(Λ $x => $b) => `(Pi.lam fun $x => $b)
-  | `(Λ $x : $t => $b) => `(Pi.lam fun $x : $t => $b)
+  | `($_:obj_fun_binder $var $[: $type]? => $body) => `(Pi.lam fun $var $[: $type]? => $body)
 
-syntax "Π∘" ident " : " term ", " term : term
+syntax "Πₒ" ident " : " term ", " term : term
 macro_rules
-  | `(Π∘ $x : $α, $P) => `(Pi $α (fun $x : $α => $P))
+  | `(Πₒ $x : $α, $P) => `(Pi $α (fun $x : $α => $P))
 
-macro "(" x:ident " : " α:term ") →∘ " P:term : term => `(Pi $α (fun $x => $P))
+macro "(" x:ident " : " α:term ") →ₒ " P:term : term => `(Pi $α (fun $x => $P))
+
+
+syntax "introₒ" notFollowedBy("|") (ppSpace colGt term:max)* : tactic
+macro_rules
+  | `(tactic| introₒ $first $[$pat]*) => `(tactic| apply Pi.lam <;> intro $first $[$pat]*)
+
+
+namespace Pi
+  section
+  variable {α : U} {β : α → U}
+  variable (f : (a : α) → β a) (g : (a : α) →ₒ β a)
+
+  @[simp]
+  theorem app_lam : app (lam f) = f := by rfl
+  
+  @[simp]
+  theorem lam_app : lam (app g) = g := by rfl
+  end
+end Pi
 
 -- Arrow type
 def Arrow (α : U) (β : U) : U :=
   Pi α (fun _ => β)
 
-infixr:20 " →∘ " => Arrow
+infixr:20 " →ₒ " => Arrow
 
-instance : CoeFun (α →∘ β) (fun _ => α → β) where
+instance : CoeFun (α →ₒ β) (fun _ => α → β) where
   coe := Pi.app
 
 -- Sigma types
@@ -103,39 +140,49 @@ def Sigma (α : U) (β : α → U) : U :=
   U.fromType (Σ a : α, β a)
 
 namespace Sigma
+  @[match_pattern, inline]
   def mk {α : U} {β : α → U} (x : Σ a : α, β a) : Sigma α β :=
     El.mk x
 
+  @[match_pattern, inline]
   def pr₁ {α : U} {β : α → U} (x : Sigma α β) : α :=
     x.intoU.1
 
+  @[match_pattern, inline]
   def pr₂ {α : U} {β : α → U} (x : Sigma α β) : β (pr₁ x) :=
     x.intoU.2
 end Sigma
 
-syntax "Σ∘" ident ":" term ", " term : term
+syntax "Σₒ" ident ":" term ", " term : term
 macro_rules
-  | `(Σ∘ $x : $α, $P) => `(Sigma $α (fun $x : $α => $P))
+  | `(Σₒ $x : $α, $P) => `(Sigma $α (fun $x : $α => $P))
 
-macro "⟪" left:term ", " right:term "⟫" : term => `(Sigma.mk ⟨$left, $right⟩)
+syntax "⟪" term ", " term,+ "⟫" : term
+macro_rules
+  | `(⟪$left, $right⟫) => `(Sigma.mk ⟨$left, $right⟩)
+  | `(⟪$x, $y, $tl,*⟫) => `(⟪$x, ⟪$y, $tl,*⟫⟫)
+-- macro "⟪" left:term ", " right:term "⟫" : term => `(Sigma.mk ⟨$left, $right⟩)
+-- macro "⟪" t1:term ", " t2:term ", " t3:term,+ "⟫" : term => `(⟪$t1, ⟪$t2, $t3,*⟫⟫)
 
 -- Coproduct
 
 def Plus (α : U) (β : U) : U :=
   U.fromType (α ⊕ β)
   
-infixr:30 " ⊕∘ " => Plus
+infixr:30 " ⊕ₒ " => Plus
 
 namespace Plus
-  def inl {α : U} {β : U} (a : α) : α ⊕∘ β :=
+  @[match_pattern]
+  def inl {α : U} {β : U} (a : α) : α ⊕ₒ β :=
     El.mk (Sum.inl a)
 
-  def inr {α : U} {β : U} (b : β) : α ⊕∘ β :=
+  @[match_pattern]
+  def inr {α : U} {β : U} (b : β) : α ⊕ₒ β :=
     El.mk (Sum.inr b)
 
-  def elim {α : U} {β : U} {P : α ⊕∘ β → U}
+  def elim {α : U} {β : U} {P : α ⊕ₒ β → U}
     (l : (a : α) → P (inl a)) (r : (b : β) → P (inr b))
-    (x : α ⊕∘ β) : P x :=
+    (x : α ⊕ₒ β) : P x :=
     match x with
     | ⟨.inl a⟩ => l a
     | ⟨.inr b⟩ => r b
@@ -146,9 +193,9 @@ end Plus
 def Times (α : U) (β : U) : U :=
   Sigma α (fun _ => β)
 
-infixr:35 " ×∘ " => Times
+infixr:35 " ×ₒ " => Times
 
--- inductive∘ A (α₁ : U) ... (αₙ : U) : U where
+-- inductiveₒ A (α₁ : U) ... (αₙ : U) : U where
 --   | c₁ (_ : β₁) ... (_ : βₘ) : A
 
 -- Unit
@@ -157,6 +204,7 @@ def One : U :=
   U.fromType Unit
 
 namespace One
+  @[match_pattern]
   def point : One := ⟨()⟩
 end One
 
@@ -176,8 +224,10 @@ def N : U :=
   U.fromType Nat
   
 namespace N
+  @[match_pattern]
   def zero : N := ⟨.zero⟩
 
+  @[match_pattern]
   def succ (n : N) : N :=
     let m : Nat := n.intoU
     ⟨m + 1⟩
@@ -222,31 +272,33 @@ end InnerId
 def Id.{i} {α : U.{i}} (x y : α) : U.{i} :=
   U.fromType.{i} (InnerId x.intoU y.intoU)
 
-infix:40 " =∘ " => Id
+infix:40 " =ₒ " => Id
 
 namespace Id
-  def refl {α : U} (x : α) : x =∘ x :=
+  @[match_pattern]
+  def refl {α : U} (x : α) : x =ₒ x :=
     ⟨InnerId.refl x.intoU⟩
 
-  def symm {α : U} (x y : α) (p : x =∘ y) : y =∘ x := by
+  def symm {α : U} (x y : α) (p : x =ₒ y) : y =ₒ x := by
     apply El.mk
     apply InnerId.symm
     exact p.intoU
 
-  def inv {α : U} {x y : α} (p : x =∘ y): y =∘ x :=
+  def inv {α : U} {x y : α} (p : x =ₒ y): y =ₒ x :=
     symm x y p
 
-  def trans {α : U} (x y z : α) (p₁ : x =∘ y) (p₂ : y =∘ z) : x =∘ z := by
+  def trans {α : U} (x y z : α) (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z := by
     apply El.mk
     apply InnerId.trans <;> apply El.intoU <;> assumption
 
-  def concat {α : U} {x y z : α} (p₁ : x =∘ y) (p₂ : y =∘ z) : x =∘ z :=
+  @[match_pattern]
+  def concat {α : U} {x y z : α} (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z :=
     trans x y z p₁ p₂
 
   infix:45 " ⬝ " => concat
 
-  def elim {α : U} {P : (x : α) → (y : α) → x =∘ y → U}
-           (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : x =∘ y) : P x y p := by
+  def elim {α : U} {P : (x : α) → (y : α) → x =ₒ y → U}
+           (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : x =ₒ y) : P x y p := by
     apply El.mk
     apply InnerId.elim (P := fun a b q =>  (P (El.mk a) (El.mk b) (El.mk q)).intoU.intoType)
     intro x
