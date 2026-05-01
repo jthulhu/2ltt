@@ -35,36 +35,6 @@ def prod_is_fibrant {α₁ α₂ : Type*} (α₁_is_fib : IsFibrantWeak α₁) (
   · apply Equiv.symm
     apply prod_eqv_sigma
 
-def pi_eqv_pi_prod {α : Type*} {β : α → Type*} [DecidableEq α] (x : α)
-                   : (∀ x, β x) ≃ (∀ x : { y : α // y ≠ x }, β ↑x) × (β x) where
-  toFun f := by
-    constructor
-    · intro y
-      exact f y
-    · exact f x
-  invFun a y :=
-    let (f, fx) := a
-    if h : y = x then
-      h ▸ fx
-    else
-      f ⟨y, h⟩
-  left_inv := by
-    intro f
-    funext y
-    simp
-    intro h
-    induction h
-    rfl
-  right_inv := by
-    intro (f, fx)
-    simp
-    funext y
-    split
-    · exfalso
-      apply y.prop
-      assumption
-    · rfl
-
 def fintype_is_cofibrant {α : Type*} [Finite α] [DecidableEq α]
                          {β : α → Type*} {β_is_fib : ∀ x, IsFibrantWeak (β x)}
                          : IsFibrantWeak <| ∀ a : α, β a := by
@@ -90,7 +60,7 @@ def fintype_is_cofibrant {α : Type*} [Finite α] [DecidableEq α]
         simp
       · apply β_is_fib
     · apply Equiv.symm
-      apply pi_eqv_pi_prod
+      apply Finite.pi_eqv_pi_prod
 
 end Tltt.Fibrancy
 end

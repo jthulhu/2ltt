@@ -27,6 +27,36 @@ instance (n : Nat) : Finite (Fin n) where
       rfl
   }
 
+def pi_eqv_pi_prod {α : Type*} {β : α → Type*} [DecidableEq α] (x : α)
+                   : (∀ x, β x) ≃ (∀ x : { y : α // y ≠ x }, β ↑x) × (β x) where
+  toFun f := by
+    constructor
+    · intro y
+      exact f y
+    · exact f x
+  invFun a y :=
+    let (f, fx) := a
+    if h : y = x then
+      h ▸ fx
+    else
+      f ⟨y, h⟩
+  left_inv := by
+    intro f
+    funext y
+    simp
+    intro h
+    induction h
+    rfl
+  right_inv := by
+    intro (f, fx)
+    simp
+    funext y
+    split
+    · exfalso
+      apply y.prop
+      assumption
+    · rfl
+
 instance finite_decidable_eq {α : Type*} [ι : Finite α] : DecidableEq α := by
   intro x y
   if h : ι.equiv x = ι.equiv y then
