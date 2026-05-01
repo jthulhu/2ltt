@@ -23,7 +23,7 @@ structure El (α : MetaU) where
   private mk ::
   private intoU : α.intoType
 
-abbrev liftedU.{i} : Type (i+1) := El Ty.{i}
+abbrev liftedU.{i} : Type (i+1) := El.{i+1} Ty.{i}
 def U : liftedU := El.mk Ty
 
 example : U.intoU = Ty := by rfl
@@ -36,9 +36,6 @@ def lift.{i} (α : liftedU.{i}) : Type i := El α.intoU
 
 -- prefix:max " ↑ " => lift
 prefix:max "^" => lift
-
-set_option pp.universes true in
-#check ^U
 
 instance : CoeSort liftedU.{i} (Type i) where
   coe α := ^α
@@ -200,50 +197,48 @@ infixr:35 " ×ₒ " => Times
 
 -- Unit
 
-def One : U :=
+def Unitₒ : U :=
   U.fromType Unit
 
-namespace One
+namespace Unitₒ
   @[match_pattern]
-  def point : One := ⟨()⟩
-end One
+  def point : Unitₒ := ⟨()⟩
+end Unitₒ
 
 -- Counit
 
-def Zero : U :=
+def Emptyₒ : U :=
   U.fromType Empty
 
-namespace Zero
-  def elim {α : U} (x : Zero) : α :=
+namespace Emptyₒ
+  def elim {α : U} (x : Emptyₒ) : α :=
     x.intoU.rec
-end Zero
+end Emptyₒ
 
 -- Natural numbers
 
-def N : U :=
+def Natₒ : U :=
   U.fromType Nat
   
-namespace N
+namespace Natₒ
   @[match_pattern]
-  def zero : N := ⟨.zero⟩
+  def zero : Natₒ := ⟨.zero⟩
 
   @[match_pattern]
-  def succ (n : N) : N :=
+  def succ (n : Natₒ) : Natₒ :=
     let m : Nat := n.intoU
     ⟨m + 1⟩
 
-  def elim {P : N → U} (c₀ : P zero) (cₙ : (n : N) → P n → P (succ n))
-    (n : N) : P n :=
+  def elim {P : Natₒ → U} (c₀ : P zero) (cₙ : (n : Natₒ) → P n → P (succ n))
+    (n : Natₒ) : P n :=
     let rec natElim {P' : Nat → Type}
       (c₀' : P' 0) (cₙ' : (n' : Nat) → P' n' → P' (n'+1)) (n' : Nat) : P' n' :=
       match n' with
       | 0 => c₀'
       | m'+1 => natElim c₀' cₙ' m' |> cₙ' m'
     natElim c₀ (fun n' p => cₙ (El.mk n') p) n.intoU
-end N
+end Natₒ
 
--- instance : OfNat ↑N n where
---   ofNat := ⟨n⟩
 
 -- Identity type
 
@@ -304,8 +299,24 @@ namespace Id
     intro x
     apply El.intoU
     apply h
+
+  def subst {α : U} {P : α → U} {a b : α} (h₁ : a =ₒ b) : P a → P b := by
+    apply Pi.app
+    apply Id.elim (P := fun x y _ => P x →ₒ P y)
+    intro x
+    apply Pi.lam
+    exact id
+    exact h₁
+
+  def mp {α β : U} (h : α =ₒ β) (a : α) : β :=
+    subst (P := fun x => x) h a
+
+  def mpr {α β : U} (h : α =ₒ β) (b : β) : α :=
+    mp (symm α β h) b
 end Id
 
-postfix:max " ⁻¹ " => Id.inv
+postfix:max "⁻¹ " => Id.inv
+
+
 
 end Hott
