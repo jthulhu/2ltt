@@ -417,7 +417,7 @@ namespace Id
     exact h
 
   @[simp]
-  theorem subst_beta {α : U} {motive : α → U} {a : α} : @subst α motive a a (refl _) = id := by
+  theorem subst.beta {α : U} {motive : α → U} {a : α} : @subst α motive a a (refl _) = id :=
     rfl
 
   def mp {α β : U} (h : α =ₒ β) (a : α) : β :=
