@@ -397,11 +397,21 @@ namespace Id
     exact id
     exact h
 
+  @[simp]
+  theorem subst_beta {α : U} {motive : α → U} {a : α} : @subst α motive a a (refl _) = id := by
+    rfl
+
   def mp {α β : U} (h : α =ₒ β) (a : α) : β :=
     subst (P := fun x => x) h a
 
+  @[simp]
+  theorem mp_beta {α : U} : mp (refl α) = id := by rfl
+
   def mpr {α β : U} (h : α =ₒ β) (b : β) : α :=
     mp (symm α β h) b
+
+  @[simp]
+  theorem mpr_beta {α : U} : mpr (refl α) = id := by rfl
 end Id
 
 end Hott
