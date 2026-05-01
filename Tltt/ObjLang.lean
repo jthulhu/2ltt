@@ -39,7 +39,19 @@ structure El (α : MetaU) where
 abbrev liftedU.{i} : Type (i+1) := El.{i+1} Ty.{i}
 def Typeₒ : liftedU := El.mk Ty
 
+open Lean.Parser in
+def univ_parser : Parser :=
+  checkWsBefore "" >> checkPrec leadPrec >> checkColGt >> levelParser maxPrec
 
+local syntax " Typeₒ " univ_parser : term
+local syntax " Typeₒ " : term
+elab_rules : term
+  | `(Typeₒ) => do
+    let u ← Lean.Meta.mkFreshLevelMVar
+    return .const ``«Typeₒ» [u]
+  | `(term| Typeₒ $level) => do
+    let u ← Lean.Elab.Term.liftLevelM <| Lean.Elab.Level.elabLevel level
+    return .const ``«Typeₒ» [u]
 
 example : Typeₒ.intoU = Ty := by rfl
 
@@ -81,11 +93,12 @@ instance : CoeSort liftedU.{u} (Type u) where
 
 -- Tm (Ty i) ⇒ Set i
 
-instance : CoeSort ^Typeₒ.{u} (Type u) where
+instance : CoeSort ^(Typeₒ u) (Type u) where
   coe α := ^α
 end
 
 universe u in
+example : ^(Typeₒ u) = liftedU.{u} := by rfl
 
 -- Pi types
 
@@ -237,7 +250,7 @@ private def Id.Inner.elim.{u₁, u₂} {α : Type u₁} {P : (x : α) → (y : �
 private def Id.Inner.trans.{i} {α : Type i} (x y z : α) : Inner x y → Inner y z → Inner x z
   | refl _, refl _ => refl _
 
-def Id.{i} {α : Typeₒ.{i}} (x y : α) : Typeₒ.{i} :=
+def Id.{i} {α : Typeₒ i} (x y : α) : Typeₒ i :=
   Typeₒ.fromType.{i} (Id.Inner x.intoU y.intoU)
 
 infix:50 " =ₒ " => Id
@@ -561,11 +574,11 @@ namespace InductiveDecl
     }
 
   def liftedU? : Expr → Option Level
-    | .app (.const ``lift [_]) (.const ``Typeₒ [u])
+    | .app (.const ``lift [_]) (.const ``«Typeₒ» [u])
     | .app (.const ``El [.succ _])
            (.app (.app (.const ``El.intoU [.succ (.succ _)])
                        (.const ``Ty [.succ _]))
-                 (.const ``Typeₒ [u])) => some u
+                 (.const ``«Typeₒ» [u])) => some u
     | _ => none
 
   def ObjInductiveType.make_inner_decl (ind_type : ObjInductiveType) : MetaM InductiveType := do
