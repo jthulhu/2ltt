@@ -158,6 +158,15 @@ namespace Sigma
   @[match_pattern, inline]
   def pr₂ {α : U} {β : α → U} (x : Sigma α β) : β (pr₁ x) :=
     x.intoU.2
+
+  @[simp]
+  def beta_pr₁ {α : U} {β : α → U} (x : α) (y : β x) : pr₁ (mk ⟨x, y⟩) = x := by rfl
+
+  @[simp]
+  def beta_pr₂ {α : U} {β : α → U} (x : α) (y : β x) : pr₂ (mk ⟨x, y⟩) = y := by rfl
+
+  @[simp]
+  def eta {α : U} {β : α → U} (x : Sigma α β) : mk ⟨pr₁ x, pr₂ x⟩ = x := by rfl
 end Sigma
 
 syntax "Σₒ" ident ":" term ", " term : term
