@@ -64,9 +64,7 @@ namespace Id
     def concat_assoc (x y z w : α) (p : x =ₒ y) (q : y =ₒ z) (r : z =ₒ w)
                      : p ⬝ (q ⬝ r) =ₒ (p ⬝ q) ⬝ r := by
       path_inductionₒ p
-      introₒ q
       path_inductionₒ q
-      introₒ r
       path_inductionₒ r
       rflₒ
   end
@@ -90,7 +88,6 @@ namespace Id
     theorem ap_concat (f : α → β) (x y z : α) (p : x =ₒ y) (q : y =ₒ z)
                       : ap f (p ⬝ q) =ₒ ap f p ⬝ ap f q := by
       path_inductionₒ p
-      introₒ q
       rwₒ [refl_concat _ _ _, refl_concat _ _ _]
 
     theorem ap_inv (f : α → β) (x y : α) (p : x =ₒ y) : ap f p⁻¹ =ₒ (ap f p)⁻¹ := by
@@ -342,8 +339,7 @@ namespace Extensionality
     theorem lift_equiv_fun : (γ →ₒ α) ≃ₒ (γ →ₒ β) := by
       have p := Univalence.eqv_to_id e
       path_inductionₒ p
-      introₒ _
-      apply Univalence.canonical _ _ |> Pi.app
+      applyₒ Univalence.canonical _ _
       rflₒ
   end Lemma_4_9_2
 

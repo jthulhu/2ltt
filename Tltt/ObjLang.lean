@@ -1,4 +1,11 @@
+import Lean
+import Lean.Data.Options
+
 open Lean.PrettyPrinter (Unexpander)
+open Lean.PrettyPrinter.Delaborator (Delab delab whenNotPPOption)
+open Lean.PrettyPrinter.Delaborator.SubExpr (getExpr withAppArg)
+open Lean.MonadOptions (getOptions)
+
 section
 set_option autoImplicit false
 namespace Hott
@@ -37,8 +44,23 @@ private def U.fromType.{i} (α : Type i) : liftedU.{i} :=
 -- Tm
 def lift.{i} (α : liftedU.{i}) : Type i := El α.intoU
 
+register_option pp.lift : Bool := {
+  defValue := false
+  group := "pp"
+  descr := "(pretty printing) display lift from object-level types to Lean types"
+}
+
 -- prefix:max " ↑ " => lift
 prefix:max "^" => lift
+
+-- @[delab app.lift]
+-- def delab_lift : Delab := do
+--   `(lift oui)
+  -- whenNotPPOption (·.get pp.lift.name pp.lift.defValue) do
+  --   let e ← getExpr
+  --   guard <| e.isAppOfArity' ``lift 1
+  --   let arg ← withAppArg delab
+  --   `($arg)
 
 section
 universe u
@@ -114,10 +136,6 @@ macro "(" x:ident " : " α:term ") →ₒ " P:term : term => `(Pi $α (fun $x =>
 def unexpand_pi : Unexpander
   | `($_ $α fun $x:ident => $β) => `(Πₒ $x : $α, $β)
   | _ => throw ()
-
-syntax "introₒ" notFollowedBy("|") (ppSpace colGt term:max)* : tactic
-macro_rules
-  | `(tactic| introₒ $first $[$pat]*) => `(tactic| apply Pi.lam <;> intro $first $[$pat]*)
 
 
 namespace Pi
