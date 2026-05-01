@@ -218,6 +218,16 @@ def Funₒ.fiber {α : U} {β : U} (f : α →ₒ β) (y : β) : U :=
 abbrev U.is_contractible (α : U) : U :=
   Σₒ a : α, Πₒ x : α, a =ₒ x
 
+def U.Singleton {α : U} (x : α) : U :=
+  Σₒ x' : α, x =ₒ x'
+
+def U.Singleton.is_contr {α : U} {a : α} : is_contractible (Singleton a) := by
+  exhibitₒ ⟪a, Id.refl a⟫
+  introₒ o
+  let ⟪a', p⟫ := o
+  simp at p
+  apply @Id.based_path_induction α a (fun x p'' => ⟪a, Id.refl a⟫ =ₒ ⟪x, p''⟫) (Id.refl _) a' p
+
 namespace Funₒ
   section
   variable {α β : U}
