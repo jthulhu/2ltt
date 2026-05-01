@@ -85,26 +85,6 @@ instance : CoeSort ^Typeₒ.{u} (Type u) where
 end
 
 universe u in
-example : ^Typeₒ.{u} = liftedU.{u} := by rfl
-
--- Boolean type
-
-def Boolₒ : Typeₒ :=
-  Typeₒ.fromType Bool
-
-namespace Boolₒ
-  def trueₒ : Boolₒ :=
-    El.mk true
-
-  def falseₒ : Boolₒ :=
-    El.mk false
-
-  protected def elim {P : Boolₒ → Typeₒ} (b : Boolₒ) (t : P trueₒ) (f : P falseₒ) : P b :=
-    match b with
-    | ⟨true⟩ => t
-    | ⟨false⟩ => f
-end Boolₒ
-export Boolₒ (trueₒ falseₒ)
 
 -- Pi types
 
@@ -241,47 +221,6 @@ macro_rules
 @[app_unexpander Sigmaₒ.mk]
 def unexpand_sigma_mk : Unexpander
   | `($_ $x $y) => ``(⟪$x, $y⟫)
-  | _ => throw ()
-
--- Coproduct
-
-def Sumₒ (α : Typeₒ) (β : Typeₒ) : Typeₒ :=
-  Typeₒ.fromType (α ⊕ β)
-  
-infixr:30 " ⊕ₒ " => Sumₒ
-
-@[app_unexpander Sumₒ]
-def unexpand_plus : Unexpander
-  | `($_ $α $β) => ``($α ⊕ₒ $β)
-  | _ => throw ()
-
-namespace Sumₒ
-  @[match_pattern]
-  def inlₒ {α : Typeₒ} {β : Typeₒ} (a : α) : α ⊕ₒ β :=
-    El.mk (Sum.inl a)
-
-  @[match_pattern]
-  def inrₒ {α : Typeₒ} {β : Typeₒ} (b : β) : α ⊕ₒ β :=
-    El.mk (Sum.inr b)
-
-  protected def elim {α : Typeₒ} {β : Typeₒ} {P : α ⊕ₒ β → Typeₒ} (l : (a : α) → P (inlₒ a)) (r : (b : β) → P (inrₒ b))
-    (x : α ⊕ₒ β) : P x :=
-    match x with
-    | ⟨.inl a⟩ => l a
-    | ⟨.inr b⟩ => r b
-end Sumₒ
-export Sumₒ (inlₒ inrₒ)
-
--- Product
-
-def Prodₒ (α : Typeₒ) (β : Typeₒ) : Typeₒ :=
-  Sigmaₒ α (fun _ => β)
-
-infixr:35 " ×ₒ " => Prodₒ
-
-@[app_unexpander Prodₒ]
-def unexpand_times : Unexpander
-  | `($_ $α $β) => ``($α ×ₒ $β)
   | _ => throw ()
 
 -- Identity type
