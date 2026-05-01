@@ -254,8 +254,16 @@ namespace Funₒ
     let ⟪g, ε, η⟫ := q
     let ε' :=
       Λ b => (ε (f (g b)))⁻¹ ⬝ ((Id.ap f (η (g b))) ⬝ (ε b))
-    let τ :=
-      sorry
+    let τ := by
+      introₒ a
+      have h₁ := Homotopy.homm_ap_commute (g ∘ₒ f) η a
+      have h₂ := Homotopy.homotopy_transport_commute (f ∘ₒ g ∘ₒ f) f (by introₒ z; exact ε (f z))
+                                                     (g (f a)) a (η a)
+      rewriteₒ [← Id.ap_comp (g ∘ₒ f) f (η a), ← h₁] at h₂
+      have h₃ := Id.ap (λₒ p => (ε (f (g (f a))))⁻¹ ⬝ p) h₂
+      simp at h₃
+      rewriteₒ [Id.concat_assoc _ _ _ _ _ _ _, Id.inv_concat _ _ _, Id.refl_concat _ _ _] at h₃
+      assumption
     ⟪g, η, ε', τ⟫
 
   theorem qinv_to_biinv (q : qinv f) : biinv f :=
