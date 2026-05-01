@@ -116,3 +116,30 @@ def pi_eqv_of_eqv {α α' : Type*} {β : α → Type*} {β' : α' → Type*} (u 
       intro a
       apply Equiv.symm
       apply v
+
+def prod_eqv_sigma {α₁ α₂ : Type*} : α₁ × α₂ ≃ Σ _ : α₁, α₂ where
+  toFun a :=
+    let (x, y) := a
+    ⟨x, y⟩
+  invFun a :=
+    let ⟨x, y⟩ := a
+    (x, y)
+  left_inv := by
+    intro a
+    rfl
+  right_inv := by
+    intro a
+    rfl
+
+def from_empty_eqv_unit {α : Empty → Type*} : (∀ x : Empty, α x) ≃ PUnit where
+  toFun _ :=
+    .unit
+  invFun _ x :=
+    x.elim
+  left_inv := by
+    intro f
+    funext x
+    apply x.elim
+  right_inv := by
+    intro x
+    rfl
