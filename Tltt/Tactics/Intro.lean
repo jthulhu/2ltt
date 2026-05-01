@@ -8,8 +8,6 @@ open Lean.Meta (
   mkLambdaFVars
 )
 
-set_option autoImplicit false
-
 def Lean.MVarId.introₒ (goal : MVarId) : List Name → MetaM (MVarId × List FVarId)
   | [] => return (goal, [])
   | var_name::rest => do

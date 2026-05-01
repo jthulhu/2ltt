@@ -19,8 +19,6 @@ open Lean.Meta (
   whnfD
 )
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.Tactic
 
 /-- Given `h : a =ₒ b`, return a proof of `b =ₒ a`. -/

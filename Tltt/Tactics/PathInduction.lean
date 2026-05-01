@@ -33,8 +33,6 @@ open Lean.Meta (
   withLocalDecl
 )
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.Tactics.PathInduction
   syntax (name := path_induction_obj) "path_inductionₒ " term (" with refl " term)? : tactic
 

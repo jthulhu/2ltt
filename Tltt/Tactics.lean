@@ -82,8 +82,6 @@ open Lean (
   mkFreshMVarId
 )
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.Tactic
 
 namespace DotExpansion

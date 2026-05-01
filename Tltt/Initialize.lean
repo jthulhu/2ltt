@@ -8,8 +8,6 @@ open Lean (
 )
 open Lean.Elab (Modifiers)
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.InductiveDecl
 instance : Repr Modifiers where
   reprPrec _ _ := .text "<mods>"

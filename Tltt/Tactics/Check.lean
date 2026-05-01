@@ -7,8 +7,6 @@ open Lean.Elab.Tactic (
   getFVarId
 )
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.Tactic.Check
   /-- `check` is a debugging tactic. It will not affect the state of the proof whatsoever.
       `check ⊢` checks that the current goal is type-correct.

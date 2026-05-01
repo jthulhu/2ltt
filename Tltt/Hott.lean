@@ -1,7 +1,6 @@
 import Tltt.ObjLang
 import Tltt.Tactics
 
-set_option autoImplicit false
 
 noncomputable section
 

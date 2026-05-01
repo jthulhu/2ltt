@@ -9,7 +9,6 @@ open Lean.PrettyPrinter.Delaborator.SubExpr (getExpr withAppArg)
 open Lean.MonadOptions (getOptions)
 
 noncomputable section
-set_option autoImplicit false
 namespace Tltt.Hott
 
 -- Universe setup

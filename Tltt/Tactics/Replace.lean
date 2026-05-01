@@ -30,8 +30,6 @@ open Lean.Meta (
 open Lean.MonadLCtx (getLCtx)
 open Lean.Parser.Tactic (location)
 
-set_option autoImplicit false
-
 namespace Tltt.Hott.Tactic.Replace
   /-- `replace a with b at l` replaces `a` with `b` if they are definitionally equal, in `l`,
       which can be either a local hypothesis or `⊢` to signify the goal. -/

@@ -13,8 +13,6 @@ open Lean.Meta (
   mkFreshLevelMVar
 )
 
-set_option autoImplicit false
-
 namespace Lean.Expr
   /-- If given `lift.{u} α`, return `(u, α)`. -/
   def lift? (e : Expr) : MetaM (Option (Level × Expr)) := do
