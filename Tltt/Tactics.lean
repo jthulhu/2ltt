@@ -176,14 +176,12 @@ def _root_.Lean.MVarId.introsₒ (goal : MVarId) : List Name → MetaM (MVarId �
   | [] => return (goal, [])
   | var_name::rest => do
     goal.checkNotAssigned `introsₒ
-    Lean.logInfo m!"hello\n{goal}"
     -- we have
     --   goal : ^((var : α) →ₒ (β var))
     -- we want to produce
     --   goal' : ^β
     -- with goal ≡ Pi.lam (λ var. goal')
     let goal_typeₒ ← (← goal.getType).objType!
-    Lean.logInfo "checkpoint"
     let some (u₁, u₂, α, β) ← goal_typeₒ.pi?
       | throwTacticEx `introsₒ goal
                       "could not introduce a variable, goal has type{indentExpr goal_typeₒ}\nwhich is not a universal quantifier"
