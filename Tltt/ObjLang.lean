@@ -1,3 +1,5 @@
+section
+set_option autoImplicit false
 namespace Hott
 
 -- Universe setup
@@ -37,7 +39,9 @@ def lift.{i} (α : liftedU.{i}) : Type i := El α.intoU
 -- prefix:max " ↑ " => lift
 prefix:max "^" => lift
 
-instance : CoeSort liftedU.{i} (Type i) where
+section
+universe u
+instance : CoeSort liftedU.{u} (Type u) where
   coe α := ^α
 
 -- ^  ≡ Tm
@@ -45,8 +49,9 @@ instance : CoeSort liftedU.{i} (Type i) where
 
 -- Tm (Ty i) ⇒ Set i
 
-instance : CoeSort ^U.{i} (Type i) where
+instance : CoeSort ^U.{u} (Type u) where
   coe α := ^α
+end
 
 example : ^U = liftedU := by rfl
 
@@ -129,7 +134,7 @@ def Arrow (α : U) (β : U) : U :=
 
 infixr:20 " →ₒ " => Arrow
 
-instance : CoeFun (α →ₒ β) (fun _ => α → β) where
+instance {α β : U} : CoeFun (α →ₒ β) (fun _ => α → β) where
   coe := Pi.app
 
 -- Sigma types
