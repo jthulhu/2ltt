@@ -491,7 +491,7 @@ namespace Replace
       let mvarId ← getMainGoal
       let localDecl ← fvarId.getDecl
       let target_type := localDecl.type
-      let target_type_hole ← kabstract pattern target_type
+      let target_type_hole ← kabstract target_type pattern
       -- check that we found an occurrence of the pattern in the target type
       unless target_type_hole.hasLooseBVars do
         throwTacticEx `replace mvarId
