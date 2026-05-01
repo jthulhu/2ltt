@@ -1,15 +1,15 @@
 import Lake
 open Lake DSL
 
-package «2ltt» {
+package «tltt» {
   -- add package configuration options here
 }
 
-lean_lib [anonymous] {
+lean_lib «Tltt» {
   -- add library configuration options here
 }
 
 @[default_target]
-lean_exe «2ltt» {
+lean_exe «tltt» {
   root := `Main
 }
