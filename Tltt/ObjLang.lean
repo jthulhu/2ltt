@@ -30,6 +30,7 @@ structure MetaU.{i} : Type (i+1) where
 def Ty.{i} : MetaU.{i+1} :=
   MetaU.mk MetaU.{i}
 
+@[pp_using_anonymous_constructor]
 structure El (α : MetaU) where
   private mk ::
   private intoU : α.intoType
