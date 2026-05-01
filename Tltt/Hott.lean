@@ -143,22 +143,38 @@ namespace Homotopy
   end
 
   section                       -- Lemma 2.4.3
-    variable {α : U} {β : α → U}
-    variable (f g : Pi α β)
+    variable {α β : U}
+    variable (f g : α →∘ β)
     variable (H : f ~ g)
     variable (x y : α)
     variable (p : x =∘ y)
-
-    theorem homotopy_transport_commute : H x ⬝ Id.ap g p =∘ Id.ap f p ⬝ H y := by
-      sorry
+    
+    theorem homotopy_transport_commute : H x ⬝ Id.ap g p =∘ Id.ap f p ⬝ H y :=
+      let P x y p := H x ⬝ Id.ap g p =∘ Id.ap f p ⬝ H y
+      let h x := by
+        simp
+        apply Id.subst
+        apply Id.symm
+        apply Id.refl_concat
+        apply Id.concat_refl
+      Id.elim (P := P) h x y p
   end
 end Homotopy
 
------
+namespace Arrow
+  def after {α β γ : U} (f : α →∘ β) (g : β →∘ γ) : α →∘ γ :=
+    Λ x => g $∘ f x
+
+  def compose {α β γ : U} (f : β →∘ γ) (g : α →∘ β) : α →∘ γ :=
+    Λ x => f $∘ g x
+end Arrow
+
+infixr:90 " ∘∘ " => Arrow.compose
+
+-- Equivalences
 
 def Arrow.fiber {α : U} {β : U} (f : α →∘ β) (y : β) : U :=
   Σ∘ x : α, f x =∘ y
-
 
 -- Note: if this function is defined in the current namespace rather than in `U`, then the
 -- `Arrow.is_contractible` one doesn't compile anymore (assuming the `is_contractible` function
@@ -166,8 +182,19 @@ def Arrow.fiber {α : U} {β : U} (f : α →∘ β) (y : β) : U :=
 def U.is_contractible (α : U) : U :=
   Σ∘ a : α, Π∘ x : α, a =∘ x
 
-def Arrow.is_contractible {α β : U} (f : α →∘ β) : U :=
-  Π∘ y : β, Arrow.fiber f y |>.is_contractible
+namespace Arrow
+  def is_contractible {α β : U} (f : α →∘ β) : U :=
+    Π∘ y : β, Arrow.fiber f y |>.is_contractible
+
+  def id {α : U} : α →∘ α :=
+    Λ x => x
+
+  def qinv {α β : U} (f : α →∘ β) : U :=
+    Σ∘ g : β →∘ α, (f ∘∘ g ~ id) ×∘ (g ∘∘ f ~ id)
+end Arrow
+
+theorem id_is_contractible {α : U} : Arrow.is_contractible (@Arrow.id α) :=
+  Λ y => Sigma.mk ⟨Sigma.mk ⟨y, Arrow.id y =∘ y⟩, Λ fib' => _⟩
 
 -- def Arrow.qinv {α : U} {β : U} (f : α →∘ β) :=
 --   Pi (Arrow β α) (fun g => 
@@ -177,7 +204,44 @@ def U.equiv (α : U) (β : U) : U :=
 
 infix:20 " ≃∘ " => U.equiv
 
+def Id.idtoeqv {α β : U} (p : α =∘ β) : (α ≃∘ β) :=
+  -- let idObj {γ : U} : γ →∘ γ := Λ z => z
+  elim (P := fun α β _ => α ≃∘ β) (λ γ => Sigma.mk ⟨@Arrow.id γ, id_is_contractible⟩) α β p
+
 axiom U.univalence {α β : U} : (α ≃∘ β) ≃∘ (α =∘ β)
 
+-- namespace Tactics
+--   open Lean.Parser.Tactic
+--   open Lean.Elab Tactic
+--   open Lean.Meta
+  
+--   syntax (name := objRewriteSeq) "rewrite∘" rwRuleSeq (location)? : tactic
+
+--   def objRewrite (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
+--                  (occs : Occurrences := Occurrences.all) : MetaM RewriteResult :=
+--     mvarId.withContext do
+--       sorry
+
+--   def objRewriteTarget (stx : Syntax) (symm : Bool) : TacticM Unit := do
+--     Term.withSynthesize <| withMainContext do
+--       let e ← elabTerm stx none true
+--       let r ← objRewrite (← getMainGoal) (← getMainTarget) e symm
+
+--   def objRewriteLocalDecl (stx : Syntax) (symm : Bool) (fvarId : FVarId) : TacticM Unit := do
+--     sorry
+
+--   def withObjRWRulesSeq (token : Syntax) (rwObjRulesSeqStx : Syntax)
+--     (x : (symm : Bool) → (term : Syntax) → TacticM Unit) : TacticM Unit := do
+--     sorry
+
+--   @[tactic objRewriteSeq]
+--   def evalObjRewriteSeq : Tactic := fun stx => do
+--     let loc := expandOptLocation stx[2]
+--     withObjRWRulesSeq stx[0] stx[1] fun symm term => do
+--       withLocation loc
+--         (objRewriteLocalDecl term symm ·)
+--         (objRewriteTarget term symm)
+--         (throwTacticEx `rewriteObj · "did not find instance of the pattern in the current goal")
+-- end Tactics
 
 end Hott
