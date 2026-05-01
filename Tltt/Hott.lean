@@ -63,10 +63,10 @@ def Sigmaₒ.sigma_eqv_obj_sigma {α : Typeₒ} {β : α → Typeₒ} : (Σ x : 
     ⟨a₊1, a₊2⟩
   left_inv := by
     intro a
-    rfl'
+    rfl
   right_inv := by
     intro a
-    rfl'
+    rfl
 
 /--
   Universe-polymorph lifting: this embeds a type living in a universe in a higher universe. The
