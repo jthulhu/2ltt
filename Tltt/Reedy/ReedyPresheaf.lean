@@ -185,55 +185,125 @@ namespace CompactLRP
   universe u₁ u₂
   variable {D : Type u₁} [DirectCategory.{u₁, max u₁ u₂} D] {n : Nat}
 
-  section ToLRP
+  namespace ToLRP
   variable (self : CompactLRP.{u₁, u₂} D n)
 
-  def to_lrp : LayeredReedyPresheaf.{u₁, u₂} D n where
-    X := self.X.presheaf
-    Y i := Σ z, self.glueing i z
-    u {i j} f y := by
-      dsimp only at y
-      induction y with | mk z a =>
-      let cone := MatchingObject.limit_cone i.point (restrict₅ i self.X.presheaf) |>.cone
-      have : i.point ≠ j.point := by
-        intro i_eq_j
+  abbrev X : Psh (Below D n) :=
+    self.X.presheaf
+
+  abbrev Y (i : OfRank D n) : Type _ :=
+    Σ z, self.glueing i z
+
+  abbrev u {i : OfRank D n} {j : Below D n} (f : j.point ⟶ i.point) : Y self i → (X self).obj (.op j) := by
+    intro y
+    induction y with | mk z a =>
+    let cone := MatchingObject.limit_cone i.point (restrict₅ i self.X.presheaf) |>.cone
+    have : i.point ≠ j.point := by
+      intro i_eq_j
+      apply Nat.lt_irrefl n
+      conv =>
+        lhs
+        rw [← i.rank_is, i_eq_j]
+      apply j.rank_is_lt
+    induction i with | mk i rk_i_eq_n =>
+    induction rk_i_eq_n
+    have := cone.π.app ⟨j.point, f, this⟩
+    dsimp [restrict₅, under.inclusion] at this
+    apply this
+    show MatchingObject _ _
+    dsimp only at z ⊢
+    exact z
+
+  abbrev is_reedy : is_reedy_up_to n (X self) :=
+    self.X.is_reedy
+
+  abbrev coh : ∀ {i : OfRank D n} {j k : Below D n} (f : j.point ⟶ i.point) (g : k ⟶ j),
+               (X self).map g.op ∘ u self f = u self (g ≫ f) := by
+    intro ⟨i, rk_i_eq_n⟩ j k f g
+    induction rk_i_eq_n
+    dsimp
+    funext ⟨z, hello⟩
+    simp
+    generalize_proofs pf₁ pf₂
+    let cone := (MatchingObject.limit_cone i self.X.presheaf).cone
+    let j' : under i := by
+      exists j.point, f
+      intro i_eq_j
+      apply Nat.lt_irrefl (rk i)
+      conv =>
+        lhs
+        rw [i_eq_j]
+      apply Below.rank_is_lt
+    let k' : under i := by
+      exists k.point, g ≫ f
+      intro k_eq_j
+      apply Nat.lt_irrefl (rk i)
+      conv =>
+        lhs
+        rw [k_eq_j]
+      apply Below.rank_is_lt
+    let g' : k' ⟶ j' := by exists g
+    apply Eq.symm
+    apply congrFun <| cone.π.naturality (.op g')
+
+  abbrev layered_presheaf : Presheaf.LayeredPresheaf D n where
+    X := X self
+    Y := Y self
+    u := u self
+    coh := coh self
+
+  theorem restrict_lp_to_psh : (restrict₁ (layered_presheaf self).to_psh) = self.X.presheaf := by
+    refine CategoryTheory.Functor.ext ?object ?map
+    · intro ⟨i⟩
+      unfold Presheaf.LayeredPresheaf.to_psh
+      simp
+      rw [Presheaf.LayeredPresheaf.ToPsh.obj_rk_lt_n]
+      · simp [X]
+        rfl
+      · simp
+        intro h
         apply Nat.lt_irrefl n
-        conv =>
-          lhs
-          rw [← i.rank_is, i_eq_j]
-        apply j.rank_is_lt
-      have := cone.π.app ⟨j.point, f, this⟩
-      induction i with | mk i rk_i_eq_n =>
-      induction rk_i_eq_n
-      simp [restrict₅, under.inclusion] at this
-      apply this
-      show MatchingObject _ _
-      dsimp only at z ⊢
-      exact z
-    coh := by
-      intro ⟨i, rk_i_eq_n⟩ j k f g
-      induction rk_i_eq_n
-      dsimp
-      funext ⟨z, hello⟩
-      simp
-      generalize_proofs pf₁ pf₂
-      let cone := (MatchingObject.limit_cone i self.X.presheaf).cone
-      let j' : under i := by exists j.point, f
-      let k' : under i := by exists k.point, g ≫ f
-      let g' : k' ⟶ j' := by exists g
-      have := cone.π.naturality (.op g')
-      simp at this
-      have := congrFun this z
-      simp at this
-      show self.X.presheaf.map g.op (cone.π.app (.op j') z) = cone.π.app (.op k') z
-      exact this.symm
-    is_reedy := self.X.is_reedy
-    is_fibrant := by
-      intro i
-      simp
-      have := self.glueing
-      sorry
+        conv => lhs; rw [← h]
+        apply Below.rank_is_lt
+    · intro ⟨i⟩ ⟨j⟩ f
+      simp [restrict₁, layered_presheaf, Presheaf.LayeredPresheaf.to_psh]
+      rw [Presheaf.LayeredPresheaf.ToPsh.map_rk_lt_n]
+      · rfl
+      repeat {
+        intro h
+        apply Nat.lt_irrefl n
+        conv => lhs; rw [← h]
+        apply Below.rank_is_lt
+      }
+
+  abbrev is_fibrant : ∀ (i : OfRank D n),
+                      is_reedy_at i.point (restrict₄ i (layered_presheaf self).to_psh) := by
+    intro ⟨i, rk_i_eq_n⟩
+    induction rk_i_eq_n
+    dsimp
+    unfold is_reedy_at
+    unfold is_fibration_strict
+    exists ?map
+    case map =>
+      have : MatchingObject i (restrict₁ (layered_presheaf self).to_psh)
+             = MatchingObject i self.X.presheaf := by
+        rw [restrict_lp_to_psh]
+      refine ?_ ∘ eqToHom this
+      exact self.glueing i
+    simp
+    constructor
+    · sorry
+    · sorry
+
+  def to_lrp : LayeredReedyPresheaf.{u₁, u₂} D n where
+    X := X self
+    Y := Y self
+    u := u self
+    coh := coh self
+    is_reedy := is_reedy self
+    is_fibrant := is_fibrant self
   end ToLRP
+  export ToLRP (to_lrp)
 
   section OfLRP
   variable (l : LayeredReedyPresheaf.{u₁, u₂} D n)
@@ -250,7 +320,6 @@ namespace CompactLRP
       simp at z
       have := l.is_fibrant (OfRank.in_own_layer i)
       simp at this
-      replace (OfRank.in_own_layer i).point with i at this
       cases this with | mk can hello =>
       apply can
       suffices h : restrict₁ (restrict₄ i l.to_psh) = l.X
