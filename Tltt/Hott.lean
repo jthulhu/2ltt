@@ -560,8 +560,28 @@ end Univalence
 section Lemma_4_8_1
   universe u
   variable {α : U.{u}} {β : α → U.{u}} {a : α}
-    admit
   theorem fiber_pr₁_eqv_beta : @Funₒ.fiber (Sigmaₒ α β) _ (Pi.lam Sigmaₒ.pr₁) a ≃ₒ β a := by
+    exhibitₒ by
+      introₒ fib
+      let ⟪⟪x, y⟫, h⟫ := fib
+      apply Id.subst h y
+    apply Funₒ.qinv_to_ishae
+    exhibitₒ by
+      introₒ y
+      exhibitₒ ⟪a, y⟫
+      rflₒ
+    exhibitₒ by
+      introₒ fib
+      simp
+      rflₒ
+    introₒ ⟪⟪x, y⟫, h⟫
+    dsimp at h
+    simp
+    -- set_option trace.Meta.check true in
+    -- set_option pp.all true in
+    -- rewrite [Sigmaₒ.beta_pr₁]
+    -- path_inductionₒ h
+    sorry
 end Lemma_4_8_1
 
 namespace Extensionality
