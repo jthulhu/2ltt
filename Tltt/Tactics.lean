@@ -44,7 +44,6 @@ open Lean.Meta (
   postprocessAppMVars
   throwTacticEx
   whnfD
-  whnfI
   withLocalDecl
 )
 open Lean (
@@ -395,8 +394,8 @@ namespace PathInduction
           return var_names
         let forall_formₒ := forall_formₒ.mvarId!
         let refl_case_motive_type ← withLocalDecl name .default (← α.lift) fun newx => do
-          let motiveBody ←
-            whnfI <| mkAppN motive #[newx, newx, mkApp2 (.const ``Id.refl [u]) α newx]
+          let motiveBody :=
+            mkAppN motive #[newx, newx, mkApp2 (.const ``Id.refl [u]) α newx] |>.headBeta
           let liftedMotiveBody := motiveBody.liftWith motive_level
           mkForallFVars #[newx] liftedMotiveBody
         let refl_case_goal ← mkFreshExprSyntheticOpaqueMVar refl_case_motive_type
