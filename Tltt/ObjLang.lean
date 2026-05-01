@@ -628,6 +628,8 @@ namespace InductiveDecl
       let lambda_form ← forallTelescopeReducing self.type fun args target =>
         mkLambdaFVars args target
       let substitued ← whnfI <| mkAppN lambda_form arguments
+      let .app (.const ``lift [_]) substitued := substitued
+        | throwError m!"constructor has to produce an object-level type, got{indentExpr substitued}"
       return substitued.getAppArgs
   end ObjConstructor
   
@@ -810,16 +812,14 @@ namespace InductiveDecl
     match ← whnfD type with
     | .forallE var_name var_type body bi =>
       let type_of_var_type ← inferType var_type
-      let u ← mkFreshLevelMVar
-      let pattern := Expr.const ``liftedU [u]
-      if ← isDefEq type_of_var_type pattern then
+      if liftedU? type_of_var_type |>.isSome then
         withLocalDecl var_name bi var_type fun x => is_obj_type_former (body.instantiate1 x)
+      else if let .app (.const ``lift _) _ := var_type then
+        return true
       else
         return false
     | _ =>
-      let u ← mkFreshLevelMVar
-      let pattern := Expr.const ``liftedU [u]
-      isDefEq type pattern
+      return liftedU? type |>.isSome
 
   /-- Elaborate the header of the declaration, checking for the following properties:
       - all indices must be object-level types (lifted object-level types **not** accepted)
@@ -875,7 +875,8 @@ namespace InductiveDecl
     let type ← mk_type_for header
     withLCtx header.lctx header.localInsts <| withRef header.view.ref do
       Lean.Elab.Term.withAuxDecl header.view.short_name type header.view.full_name fun indFVar =>
-        x header.params indFVar
+        forallTelescopeReducing type fun params _ => do
+          x params indFVar
 
   /-- Execute `k` with updated binder information for `xs`. Any `x` that is explicit becomes
       implicit. -/
@@ -892,8 +893,9 @@ namespace InductiveDecl
     forallTelescopeReducing indFVarType fun xs _ =>
       return xs.size > num_params
 
-  def elab_constructor (indFVar : Expr) (params : Array Expr) (header : ElabHeaderResult)
-                : TermElabM (List ObjConstructor) := withRef header.view.ref do
+  def elab_constructor (indFVar : Expr) (params : Array Expr) (nb_params : Nat)
+                       (header : ElabHeaderResult) : TermElabM (List ObjConstructor) :=
+    withRef header.view.ref do
     let indFamily ← is_inductive_family params.size indFVar
     header.view.constructors.toList.mapM fun ctor_view =>
       withAutoBoundImplicit <| elabBinders ctor_view.binders.getArgs fun ctorParams =>
@@ -907,7 +909,6 @@ namespace InductiveDecl
               k <| mkAppN indFVar params
             | some ctorType =>
               let type ← elab_obj_type ctorType
-              -- TODO: lift type
               trace[Tltt.inductiveₒ] "elabType {ctor_view.name}: {type}"
               synthesizeSyntheticMVars (mayPostpone := true)
               let type ← instantiateMVars type
@@ -929,7 +930,7 @@ namespace InductiveDecl
             trace[Tltt.inductiveₒ] "extraCtorParams: {extraCtorParams}"
             let type ← mkForallFVars (extraCtorParams ++ ctorParams) type
             -- let type ← reorderCtorArgs type
-            let type ← mkForallFVars params type
+            let type ← mkForallFVars params[:nb_params] type
             trace[Tltt.inductiveₒ] "{ctor_view.name}: {type}"
             return {
               full_name := ctor_view.name
@@ -938,14 +939,14 @@ namespace InductiveDecl
               type
             }
   where
-    checkParamOccs (ctorType : Expr) : MetaM Expr :=
+    checkParamOccs (ctorType : Expr) : MetaM Expr := do
       let visit (e : Expr) : MetaM TransformStep := do
         let f := e.getAppFn
         if indFVar == f then
           let mut args := e.getAppArgs
           unless args.size ≥ params.size do
             throwError "unexpected inductive type occurrence{indentExpr e}"
-          for i in [:params.size] do
+          for i in [:nb_params] do
             let param := params[i]!
             let arg := args[i]!
             unless ← isDefEq param arg do
@@ -1250,7 +1251,7 @@ namespace InductiveDecl
       let inner_metau :=
         .app (.const ``MetaU.mk [u])
         <| mkAppN (.const ind_type.inner_name ind_type.level_vars)
-                  constr_params[:params.size]
+        <| ← constructor.target_inner_type constr_params
       actual_params
       |> mkAppN (.const constructor.inner_name ind_type.level_vars)
       |> mkApp2 (.const ``El.mk [u]) inner_metau
@@ -1264,19 +1265,18 @@ namespace InductiveDecl
       safety := .safe
       hints := .regular <| getMaxHeight (← getEnv) constr_val + 1
     }
+    trace[Tltt.inductiveₒ.constr] m!"{constructor.short_name} : {constructor.type} :={indentExpr constr_val}"
     let constr_decl := Declaration.defnDecl constr_def_val
     ensureNoUnassignedMVars constr_decl
     addDecl constr_decl
 
-  def mkElMk (u : Level) (e : Expr) : MetaM Expr := do
+  def mkElMk (e : Expr) : MetaM Expr := do
     let e_type ← inferType e
     let e_type_type ← inferType e_type
-    let .sort (.succ u') := e_type_type
+    let .sort (.succ u) := e_type_type
       | throwError "type's type should be `Type u`{indentExpr e_type}\nnot{indentExpr e_type_type}"
-    unless u == u' do
-      Lean.logInfo m!"Got level {u}, expected level {u'}"
-    let metau := .app (.const ``MetaU.mk [u']) e_type
-    return mkApp2 (.const ``El.mk [u']) metau e
+    let metau := .app (.const ``MetaU.mk [u]) e_type
+    return mkApp2 (.const ``El.mk [u]) metau e
 
   def with_dewraped_arguments {α} [Inhabited α] (actual_arguments : Array Expr)
                               (ind_type : ObjInductiveType) (f : Array Expr → TermElabM α)
@@ -1286,33 +1286,35 @@ namespace InductiveDecl
     for i in [:actual_arguments.size] do
       let arg := actual_arguments[i]!
       let arg_type ← inferType arg
-      let name := (← arg.fvarId!.getUserName).appendAfter "'"
+      let name := ← arg.fvarId!.getUserName
       let no_recursive_case := (
         pure,
         (name, .default, fun _ : Array _ => pure arg_type)
       )
-      let (arg_map, decl) ← forallTelescopeReducing arg_type fun arg_args arg_goal => do
+      let (arg_map, decl) ← forallTelescopeReducing arg_type fun _ arg_goal => do
         -- check whether the argument is of the form
         --   `∀ ..arg_args, ^(cons ..cons_args)`
-        let .app (.const ``lift [u]) arg_goal_ul := arg_goal | return no_recursive_case
+        let .app (.const ``lift [_]) arg_goal_ul := arg_goal | return no_recursive_case
         let .const arg_goal_ul_fn arg_goal_levels := arg_goal_ul.getAppFn
           | return no_recursive_case
         unless arg_goal_ul_fn == ind_type.full_name do
           return no_recursive_case
-        let dewraped_type (previous_constrs : Array Expr) := do
-          -- We must substitue occurrences of previous arguments of the constructor
-          -- with the newly-created arguments. For instance, if we had a constructor
-          --   cons_case : (x : Hello) → (y : f x) → motive (cons x y)
-          -- it must turn into
-          --   cons'_case : (x' : Hello) → (y' : f (El.mk x')) → motive <| El.mk (cons x' y')
-          --                                        ^^^^^^^^ =: rewrap_map x'
-          whnfI
-          <| (mkAppN · <| ← previous_constrs.zip rewrap_maps
-                          |>.mapM fun (constr, map) => map constr)
-          <| ← mkLambdaFVars actual_arguments[:i].toArray
-          <| ← mkForallFVars arg_args
-          <| mkAppN (.const ind_type.inner_name arg_goal_levels)
-          <| arg_goal_ul.getAppArgs
+        let dewraped_type (previous_constrs : Array Expr) :=
+          forallTelescopeReducing arg_type fun arg_args arg_goal => do
+            -- We must substitue occurrences of previous arguments of the constructor
+            -- with the newly-created arguments. For instance, if we had a constructor
+            --   cons_case : (x : Hello) → (y : f x) → motive (cons x y)
+            -- it must turn into
+            --   cons'_case : (x' : Hello) → (y' : f (El.mk x')) → motive <| El.mk (cons x' y')
+            --                                        ^^^^^^^^ =: rewrap_map x'
+            let .app (.const ``lift [_]) arg_goal_ul := arg_goal | throwError "impossible?"
+            whnfI
+            <| (mkAppN · <| ← previous_constrs.zip rewrap_maps
+                            |>.mapM fun (constr, map) => map constr)
+            <| ← mkLambdaFVars actual_arguments[:i].toArray
+            <| ← mkForallFVars arg_args
+            <| mkAppN (.const ind_type.inner_name arg_goal_levels)
+            <| arg_goal_ul.getAppArgs
         -- `rewrap_map` takes a free variable bound to the unwrap constructor, and
         -- rewraps it. The goal is to use substitute the rewraped version for
         -- occurrences of the plain argument with expressions that only depend on its
@@ -1322,12 +1324,18 @@ namespace InductiveDecl
           let type ← inferType cons'
           forallTelescopeReducing type fun a g => do
             mkForallFVars a
-            <| ← mkElMk u
+            <| ← mkElMk
             <| mkAppN g a
         return (rewrap_map, (name, .default, dewraped_type))
       rewrap_maps := rewrap_maps.push arg_map
       dewraped_argument_decls := dewraped_argument_decls.push decl
     withLocalDecls dewraped_argument_decls f
+
+  def mkElIntoU (e : Expr) : MetaM Expr := do
+    let e_type ← inferType e
+    let .app (.const ``El [u]) α := e_type
+      | throwError "type mismatch, expected type `El α`, got{indentExpr e_type}\nfor `El.intoU e` where `e` is{indentExpr e}"
+    return mkApp2 (.const ``El.intoU [u]) α e
 
   def make_recursor (ind_type : ObjInductiveType) (params : Array Expr) : TermElabM Unit := do
     -- The type of the recursor is
@@ -1368,11 +1376,11 @@ namespace InductiveDecl
                 let indices_args := arg_goal_ul.getAppArgs[ind_type.number_parameters:]
                 if type_former == ind_type.full_name then
                   let ih_type :=
-                    .app (.const ``lift [motive_level])
-                    <| ← mkForallFVars args
-                    <| .app (mkAppN motive indices_args) arg
+                    ← mkForallFVars args
+                    <| .app (.const ``lift [motive_level])
+                    <| .app (mkAppN motive indices_args) (mkAppN arg args)
                   return some (
-                    constructor.short_name.appendAfter "_ih",
+                    (← arg.fvarId!.getUserName).appendAfter "_ih",
                     BinderInfo.default,
                     fun _ : Array _=> pure ih_type
                   )
@@ -1393,7 +1401,8 @@ namespace InductiveDecl
             let constr_case_type ← whnfI <| mkAppN constr_case_type parameters
             return (constructor.short_name, BinderInfo.default, fun _ : Array _ => pure constr_case_type)
         withLocalDecls cons_decls fun constructors => do
-        -- build goal type
+          trace[Tltt.inductiveₒ.recₒ] m!"constructors = {constructors}"
+          -- build goal type
           let mut goal_type := Expr.app (mkAppN motive indices) x
           goal_type := .app (.const ``lift [motive_level]) goal_type
           goal_type ← mkForallFVars #[x] goal_type
@@ -1420,6 +1429,7 @@ namespace InductiveDecl
           let mut constr_by_name : HashMap Name ObjConstructor := {}
           for constructor in ind_type.constructors do
             constr_by_name := constr_by_name.insert constructor.short_name constructor
+          trace[Tltt.inductiveₒ.recₒ] m!"goal_value = {goal_value}"
           goal_value := mkAppN goal_value <| ← constructors.mapM fun constructor_case => do
             let constructor := constr_by_name.find! (← constructor_case.fvarId!.getUserName)
             -- `constructor_case` might be an `fvar` `cons` that looks like
@@ -1450,16 +1460,15 @@ namespace InductiveDecl
               let actual_arguments := constr_args[:arity]
               let induction_hypothesis := constr_args[arity:]
               with_dewraped_arguments actual_arguments ind_type fun dewraped_arguments => do
+                trace[Tltt.inductiveₒ.recₒ] m!"{← (dewraped_arguments.mapM fun x => inferType x)}"
                 let rewraped_arguments ← dewraped_arguments.mapM fun arg => do
                   let type ← inferType arg
-                  let .sort (.succ u) ← inferType type
-                    | throwError "type's type should be `Type u`{indentExpr type}"
                   forallTelescopeReducing type fun arg_args arg_goal => do
                     let .const name _ := arg_goal.getAppFn | return arg
                     unless name == ind_type.inner_name do
                       return arg
                     mkLambdaFVars arg_args
-                    <| ← mkElMk u
+                    <| ← mkElMk
                     <| mkAppN arg arg_args
                 let actual_goal :=
                   mkAppN constructor_case
@@ -1484,6 +1493,8 @@ namespace InductiveDecl
           goal_value ← mkLambdaFVars parameters goal_value
           let rec_value ← instantiateMVars goal_value
           trace[Tltt.inductiveₒ.recₒ] m!"rec_value = {rec_value}"
+          Lean.Meta.check rec_type
+          Lean.Meta.check rec_value
           let def_decl := {
             value := rec_value
             name := ind_type.full_name ++ `recₒ
@@ -1496,11 +1507,6 @@ namespace InductiveDecl
           ensureNoUnassignedMVars rec_decl
           addDecl rec_decl
 
-  -- deriving instance Repr for Constructor in
-  -- deriving instance Repr for InductiveType in
-  -- deriving instance Repr for Lean.ReducibilityHints in
-  -- deriving instance Repr for Lean.ConstantVal in
-  -- deriving instance Repr for Lean.DefinitionVal in
   def mk_obj_inductive_decl (vars : Array Expr) (view : ObjInductiveView) : TermElabM Unit :=
     withoutSavingRecAppSyntax do
       -- this is just used for sorting universe variables
@@ -1517,8 +1523,15 @@ namespace InductiveDecl
         with_obj_ind_local_decl header fun params ind_fvar => do
           trace[Tltt.inductiveₒ] "ind_fvar: {ind_fvar}"
           addLocalVarInfo view.declId ind_fvar
-          let type ← mkForallFVars params header.type
-          let ctors ← withExplicitToImplicit params (elab_constructor ind_fvar params header)
+          let nb_params ← forallTelescopeReducing header.type fun indices _ =>
+            return params.size - indices.size
+          let type ← forallTelescopeReducing header.type fun type_indices type_goal => do
+            mkForallFVars params
+            <| ← whnfI
+            <| (mkAppN · params[nb_params:])
+            <| ← mkLambdaFVars type_indices type_goal
+
+          let ctors ← withExplicitToImplicit params (elab_constructor ind_fvar params nb_params header)
           let ind_type : PartialObjInductiveType := {
             full_name := header.view.full_name
             short_name := header.view.short_name
@@ -1529,7 +1542,7 @@ namespace InductiveDecl
           synthesizeSyntheticMVarsNoPostponing
           -- `numExplicitParams` is the number of parameters after having promoted indices to
           -- parameters.
-          let numExplicitParams ← fixed_indices_to_params params.size ind_type ind_fvar
+          let numExplicitParams ← fixed_indices_to_params nb_params ind_type ind_fvar
           trace[Tltt.inductiveₒ] "numExplicitParams: {numExplicitParams}"
           let u ← get_resulting_universe_as_sort ind_type
           let univToInfer? ← shouldInferResultUniverse u
@@ -1561,7 +1574,6 @@ namespace InductiveDecl
               number_parameters := num_params
               : ObjInductiveType
             }
-            
             let inner_ind_type ← ind_type.make_inner_decl
             let inner_decl := Declaration.inductDecl level_params num_params [inner_ind_type] false
             ensureNoUnassignedMVars inner_decl
@@ -1618,10 +1630,34 @@ end Tltt.Hott
 namespace examples
 open Tltt.Hott
 
+set_option linter.unusedVariables false in
 section
-inductiveₒ Hello (α : U) : U where
-  | nil : Hello α
-  | cons (hd : α) (tl : Hello α) : Hello α
+inductiveₒ MyList (α : U) : U where
+  | nil : MyList α
+  | cons (hd : α) (tl : MyList α) : MyList α
+
+inductiveₒ MyId {α : U} : α → α → U where
+  | refl (x : α) : MyId x x
+
+inductiveₒ Natₒ : U where
+  | zero : Natₒ
+  | succ (n : Natₒ) : Natₒ
+
+def Natₒ.plus (n m : Natₒ) : Natₒ :=
+  Natₒ.recₒ n (fun _ n_p_m' => succ n_p_m') m
+
+inductiveₒ Vecₒ (α : U) : Natₒ → U where
+  | nil : Vecₒ α Natₒ.zero
+  | cons (n : Natₒ) (v : Vecₒ α n) : Vecₒ α (Natₒ.succ n)
+
+/-- `BTree n` is a binary tree with `n` nodes. -/
+inductiveₒ BTree : Natₒ → U where
+  | leaf : BTree Natₒ.zero
+  | node (n m : Natₒ) (left : BTree n) (right : BTree m) : BTree (Natₒ.plus (Natₒ.plus n m) (Natₒ.succ Natₒ.zero))
+
+inductiveₒ InfTree : U where
+  | nil : InfTree
+  | node (children : Natₒ → InfTree) : InfTree
 end
 
 -- inductive ListS.{u} (α : Type u) : Nat → Type u where
