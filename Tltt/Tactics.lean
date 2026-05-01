@@ -10,6 +10,7 @@ open Lean.Elab.Tactic (
   Tactic
   TacticM
   elabTerm
+  elabTermEnsuringType
   expandOptLocation
   getFVarId
   getGoals
@@ -44,7 +45,9 @@ open Lean.Meta (
   postprocessAppMVars
   throwTacticEx
   whnfD
+  whnfI
   withLocalDecl
+  withLetDecl
 )
 open Lean (
   BinderInfo
@@ -143,6 +146,19 @@ def _root_.Lean.Expr.pi? (e : Expr) : MetaM (Option (Level × Level × Expr × E
   else
     return none
 
+/-- Given `Sigmaₒ.{u₁, u₂} α β`, returns `(u₁, u₂, α, β)`. -/
+@[inline]
+def _root_.Lean.Expr.sigma? (e : Expr) : MetaM (Option (Level × Level × Expr × Expr)) := do
+  let u₁ ← mkFreshLevelMVar
+  let u₂ ← mkFreshLevelMVar
+  let α ← mkFreshExprMVar (Expr.const ``liftedU [u₁])
+  let β ← mkFreshExprMVar (Expr.forallE `_ (α.liftWith u₁) (.const ``liftedU [u₂]) .default)
+  let pattern := mkApp2 (.const ``Hott.Sigmaₒ [u₁, u₂]) α β
+  if ← isDefEq e pattern then
+    return some (u₁, u₂, α, β)
+  else
+    return none
+
 /-- Given `x : ^α` where `α : ^U.{u}`, returns `u`. -/
 def getObjLevel (e : Expr) : MetaM Level := do
   let t ← inferType e
@@ -228,7 +244,7 @@ def rewriteObj (mvarId : MVarId) (e : Expr) (heq : Expr) (symm : Bool := false)
                (occs : Occurrences := .all) : MetaM RewriteResult :=
   mvarId.withContext do
     mvarId.checkNotAssigned `rewriteₒ
-    let heqType ← instantiateMVars (← inferType heq)
+    let heqType ← inferType heq
     let heqObjType ← heqType.objType!
     let (newMVars, binderInfos, heqType) ← forallMetaTelescopeReducing heqType
     let heq := mkAppN heq newMVars
@@ -417,16 +433,70 @@ namespace PathInduction
     | _ => throwUnsupportedSyntax
 end PathInduction
 
-macro "rflₒ" : tactic => `(tactic| apply Id.refl)
+namespace Exhibit
+  /-- `exhibitₒ e` will reduce a goal of the form `Σₒ x, P` to a goal `P[x ← e]` -/
+  syntax (name := exhibit_obj) "exhibitₒ " term (" as " ident)? : tactic
 
-macro "rwₒ" s:rwRuleSeq l:(location)? : tactic =>
+  def exhibit (mvarId : MVarId) (witness : Syntax) (name : Option Name) : TacticM Unit := do
+    mvarId.withContext do
+      let goal_type ← mvarId.getType
+      let some (u₁, u₂, α, β) ← (← goal_type.objType!).sigma?
+        | throwTacticEx `exhibitₒ mvarId m!"goal is expected to have object-level sigma type, found{indentExpr goal_type}"
+      let witness_type := α.liftWith u₁
+      let w ← elabTermEnsuringType witness witness_type
+      match name with
+      | some name =>
+        withLetDecl name witness_type w fun _ => do
+          let proof_validity_type ← Expr.app β w |> whnfI
+          let new_goal ← mkFreshExprSyntheticOpaqueMVar (proof_validity_type.liftWith u₂)
+          new_goal.mvarId!.withContext do
+            mvarId.assign (mkAppN (.const ``Sigmaₒ.mk [u₁, u₂]) #[α, β, w, new_goal])
+            replaceMainGoal [new_goal.mvarId!]
+      | none =>
+        let proof_validity_type ← Expr.app β w |> whnfI
+        let new_goal ← mkFreshExprSyntheticOpaqueMVar (proof_validity_type.liftWith u₂)
+        new_goal.mvarId!.withContext do
+          mvarId.assign (mkAppN (.const ``Sigmaₒ.mk [u₁, u₂]) #[α, β, w, new_goal])
+          replaceMainGoal [new_goal.mvarId!]
+
+  @[tactic exhibit_obj]
+  def exhibit_impl : Tactic
+    | `(tactic| exhibitₒ $w as $x) => do
+      let .ident _ _ name _ := x.raw
+        | throwTacticEx `exhibitₒ (← getMainGoal) m!"expected variable, got {x}"
+      exhibit (← getMainGoal) w name
+    | `(tactic| exhibitₒ $w) => do
+      exhibit (← getMainGoal) w none
+    | _ => throwUnsupportedSyntax
+end Exhibit
+
+namespace Check
+  /-- `check` is a debugging tactic. It will not affect the state of the proof whatsoever.
+      `check ⊢` checks that the current goal is type-correct.
+      `check h` checks that the local hypothesis `h` is type-correct. -/
+  syntax (name := check) "check " ("⊢" <|> ident) : tactic
+
+  @[tactic check]
+  def check_impl : Tactic
+    | `(tactic| check ⊢) => do
+      let goal ← getMainGoal
+      goal.withContext do
+        let goal_type ← goal.getType
+        Lean.Meta.check goal_type
+    | _ => throwUnsupportedSyntax
+end Check
+
+/-- `rflₒ` closes a goal of the forw `x =ₒ x` with object-level reflexivity. -/
+macro "rflₒ " : tactic => `(tactic| apply _root_.Hott.Id.refl)
+
+macro "rwₒ " s:rwRuleSeq l:(location)? : tactic =>
   `(tactic| (rewriteₒ $s $(l)?; try (with_reducible rflₒ)))
 
-syntax "introₒ" notFollowedBy("|") (ppSpace colGt term:max)* : tactic
+syntax "introₒ " notFollowedBy("|") (ppSpace colGt term:max)* : tactic
 macro_rules
   | `(tactic| introₒ $first $[$pat]*) => `(tactic| apply Pi.lam; intro $first $[$pat]*)
 
-macro "applyₒ" h:term : tactic =>
+macro "applyₒ " h:term : tactic =>
   `(tactic| apply Pi.app $h)
 
 example {α β : U} (h : β =ₒ α) (x : α) : β := by
