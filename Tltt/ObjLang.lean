@@ -69,19 +69,14 @@ register_option pp.lift : Bool := {
 
 prefix:max "^" => lift
 
-@[app_unexpander lift]
-def unexpand_lift : Unexpander
-  | `($_ $α) => `($α)
-  | _ => throw ()
-
--- @[delab app.lift]
--- def delab_lift : Delab := do
---   -- `(lift oui)
---   whenNotPPOption (·.get pp.lift.name pp.lift.defValue) do
---     let e ← getExpr
---     guard <| e.isAppOfArity' ``lift 1
---     let arg ← withAppArg delab
---     `($arg)
+@[delab app.Tltt.Hott.lift]
+def delab_lift : Delab := do
+  -- `(lift oui)
+  whenNotPPOption (·.get pp.lift.name pp.lift.defValue) do
+    let e ← getExpr
+    guard <| e.isAppOfArity' ``lift 1
+    let arg ← withAppArg delab
+    `($arg)
 
 section
 universe u
