@@ -87,6 +87,10 @@ def _root_.Lean.Expr.lift! (e : Expr) : MetaM (Level × Expr) := do
   let some (u, t) ← e.lift? | throwError "{indentExpr e} is not an object-level type"
   return (u, t)
 
+def _root_.Lean.Expr.levelAsObjType! (e : Expr) : MetaM Level := do
+  let (u, _) ← e.lift!
+  return u
+
 /-- Lifts `α` into `^α`. -/
 @[inline]
 def _root_.Lean.Expr.liftWith (e : Expr) (u : Level) : Expr :=
@@ -317,40 +321,50 @@ namespace PathInduction
       -- depend on `x_var`, `y_var` and `path`, which need to be reverted but not introed.
       let (_, forall_form) ← mvarId.revert #[x_var, y_var, path] (preserveOrder := true)
       forall_form.withContext do
-        let (motive, goal_level, newGoal) ← forallBoundedTelescope (← forall_form.getType) (some 3)
-                                                                   fun args e => do
-          -- turn goals of the form (x : ^α) → ^β into ^((x : α) →ₒ β)
-          let (e, goal) ← forallTelescopeReducing e fun args e => do
+        -- forall_form : (x y : ^α) → (p : ^(x =ₒ y)) → inner_type
+        --   where inner_type = ∀ ..xs, ^e
+        -- should be turned into
+        -- forall_formₒ : (x y : ^α) → (p : ^(x =ₒ y)) → inner_typeₒ
+        --   where inner_typeₒ = ^(∀ₒ ..xs, e)
+        -- forall_form =?= λ x y p. λ ..xs. forall_formₒ x y p ..($ₒ xs)
+        let (forall_formₒ_type, motive, motive_level) ← forallBoundedTelescope (← forall_form.getType) (some 3)
+                                                            fun xyp inner_type => do
+          let inner_typeₒ ← forallTelescopeReducing inner_type fun xs e => do
             let mut result := e
-            let mut goal := forall_form
-            for arg in args.reverse do
-              -- result =?= ^β
-              -- arg : ^α
-              -- goal : (arg : ^α) → result
-              let (u₂, β) ← result.lift!
-              let body ← mkLambdaFVars #[arg] β
-              let (u₁, α) ← inferObjType arg
-              result ← mkAppN (.const ``Pi [u₁, u₂]) #[α, body] |>.lift
-              -- goal' : ^((arg : α) →ₒ β)
-              let goal' ← mkFreshExprSyntheticOpaqueMVar result
-              goal.assign (mkAppN (.const ``Pi.app [u₁, u₂]) #[α, body, goal'])
-              goal := goal'.mvarId!
-            pure (result, goal)
-          let some (goal_level, motiveBody) ← e.lift?
-            | throwTacticEx `path_inductionₒ forall_form m!"the goal{indentExpr e}\nis not an object-level type"
-          return (← mkLambdaFVars args motiveBody, goal_level, goal)
-        let something ← withLocalDecl name .default (← α.lift) fun newx => do
+            for var in xs.reverse do
+              -- var : ^α
+              -- result = ^resultₒ
+              -- ⊢ result ← ^((var : α) →ₒ resultₒ)
+              let (res_level, resultₒ) ← result.lift!
+              let (arg_level, α) ← inferObjType var
+              let β ← mkLambdaFVars #[var] resultₒ
+              result ← mkApp2 (.const ``Pi [arg_level, res_level]) α β |>.lift
+            pure result
+          let motive ← mkLambdaFVars xyp (← inner_typeₒ.objType!)
+          let forall_formₒ_type ← mkForallFVars xyp inner_typeₒ
+          let motive_level ← inner_typeₒ.levelAsObjType!
+          return (forall_formₒ_type, motive, motive_level)
+        let forall_formₒ ← mkFreshExprSyntheticOpaqueMVar forall_formₒ_type
+        forallBoundedTelescope (← forall_form.getType) (some 3) fun xyp inner_type => do
+          -- body = λ ..xs. forall_formₒ x y p ..($ₒ xs)
+          let #[x, y, p] := xyp | throwTacticEx `path_inductionₒ forall_form "this should not happen"
+          let body ← forallTelescopeReducing inner_type fun xs _ => do
+            let mut body := mkApp3 forall_formₒ x y p
+            for arg in xs do
+              body ← mkAppM ``Pi.app #[body, arg]
+            mkLambdaFVars xs body
+          forall_form.assign <| ← mkLambdaFVars xyp body
+        let forall_formₒ := forall_formₒ.mvarId!
+        let refl_case_motive_type ← withLocalDecl name .default (← α.lift) fun newx => do
           let motiveBody ←
             whnfI <| mkAppN motive #[newx, newx, mkApp2 (.const ``Id.refl [u]) α newx]
-          let liftedMotiveBody := motiveBody.liftWith goal_level
+          let liftedMotiveBody := motiveBody.liftWith motive_level
           mkForallFVars #[newx] liftedMotiveBody
-        let refl_case_goal ← mkFreshExprSyntheticOpaqueMVar something
+        let refl_case_goal ← mkFreshExprSyntheticOpaqueMVar refl_case_motive_type
         let (_, refl_case_goal_with_x) ← refl_case_goal.mvarId!.intro name
-        let elimProof := mkAppN (.const ``Id.elim [u, goal_level]) #[α, motive, refl_case_goal]
+        let elimProof := mkAppN (.const ``Id.elim [u, motive_level]) #[α, motive, refl_case_goal]
         replaceMainGoal [refl_case_goal_with_x]
-        newGoal.assign elimProof
-    Lean.logInfo m!"{Expr.mvar <| ← getMainGoal}"
-    Lean.logInfo m!"{Expr.mvar mvarId}"
+        forall_formₒ.assign elimProof
 
   @[tactic path_induction_obj]
   def path_induction_obj_impl : Tactic
@@ -387,6 +401,7 @@ example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
 example (x y z : Natₒ) (h₁ : x =ₒ y) (h₂ : y =ₒ z) : x =ₒ z := by
   rwₒ [h₁, h₂]
 
+set_option pp.explicit true in
 example (x y : Natₒ) (p : x =ₒ y) : y =ₒ x := by
   path_inductionₒ p
   rflₒ
