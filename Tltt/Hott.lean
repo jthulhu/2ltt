@@ -246,7 +246,7 @@ namespace Funₒ
       Σₒ β : U, is_retract β α
 
     theorem retract_elim {α β : U} (rp : is_retract β α) {motive : β → U}
-                         (H : Πₒ x : α, motive (Sigmaₒ.pr₁ rp x)) (y : β) : motive y := by
+                         (H : Πₒ x : α, motive (pr₁ rp x)) (y : β) : motive y := by
       let ⟪r, s, p⟫ := rp
       have h := H (s y)
       rewriteₒ [p y] at h
@@ -318,7 +318,6 @@ namespace Funₒ
     introₒ p
     simp
     path_inductionₒ p
-    simp
     generalize h x = p
     simp at p
     have h : Πₒ z : α, Πₒ q : z =ₒ x,
@@ -438,18 +437,18 @@ namespace Funₒ
     ⟪g, H, h₁⟫
 
   theorem contr_to_qinv (c : is_contractible f) : qinv f :=
-    let g : β →ₒ α := λₒ x => Sigmaₒ.pr₁ (Sigmaₒ.pr₁ (c x))
+    let g : β →ₒ α := λₒ x => pr₁ (pr₁ (c x))
     let h₁ : f ∘ₒ g ~ id := by
       introₒ x
-      let path := Sigmaₒ.pr₂ (Sigmaₒ.pr₁ (c x))
+      let path := pr₂ (pr₁ (c x))
       simp at *
       assumption
     let h₂ : g ∘ₒ f ~ id := by
       introₒ x
-      let is_unique := Sigmaₒ.pr₂ (c (f x))
+      let is_unique := pr₂ (c (f x))
       let f_x_in_fiber_f_x : fiber f (f x) := ⟪x, by rflₒ⟫
       let path := is_unique f_x_in_fiber_f_x
-      let h := Id.ap (Pi.lam Sigmaₒ.pr₁) path
+      let h := Id.ap (Pi.lam pr₁) path
       simp at h
       exact h
     ⟪g, h₁, h₂⟫
@@ -475,8 +474,8 @@ namespace Funₒ
     introₒ ptn
     let ⟪x, y⟫ := ptn
     simp
-    rewrite [← Sigmaₒ.eta (r x), ← Sigmaₒ.eta (Sigmaₒ.pr₂ (r x))]
-    let h := Sigmaₒ.pr₂ (Sigmaₒ.pr₂ (r x))
+    rewrite [← Sigmaₒ.eta (r x), ← Sigmaₒ.eta (pr₂ (r x))]
+    let h := pr₂ (pr₂ (r x))
     simp
     rewrite [← Sigmaₒ.eta (r x)]
     simp
@@ -569,7 +568,7 @@ end Univalence
 section Lemma_4_8_1
   universe u
   variable {α : U.{u}} {β : α → U.{u}} {a : α}
-  theorem fiber_pr₁_eqv_beta : @Funₒ.fiber (Sigmaₒ α β) _ (Pi.lam Sigmaₒ.pr₁) a ≃ₒ β a := by
+  theorem fiber_pr₁_eqv_beta : @Funₒ.fiber (Sigmaₒ α β) _ (Pi.lam pr₁) a ≃ₒ β a := by
     exhibitₒ by
       introₒ fib
       let ⟪⟪x, y⟫, h⟫ := fib
@@ -588,7 +587,7 @@ section Lemma_4_8_1
     simp
     -- set_option trace.Meta.check true in
     -- set_option pp.all true in
-    -- rewrite [Sigmaₒ.beta_pr₁]
+    -- rewrite [pr₁.beta]
     -- path_inductionₒ h
     sorry
 end Lemma_4_8_1
@@ -612,8 +611,7 @@ namespace Extensionality
     universe u
     variable {α : U.{u}} {β : α → U.{u}} (p : Πₒ x : α, U.is_contractible (β x))
 
-    set_option pp.universes true in
-    theorem pr₁_eqv : @Sigmaₒ.pr₁ α β |> Pi.lam |> Funₒ.is_equiv := by
+    theorem pr₁_eqv : @pr₁ α β |> Pi.lam |> Funₒ.is_equiv := by
       apply Funₒ.qinv_to_ishae
       apply Funₒ.contr_to_qinv
       introₒ x
