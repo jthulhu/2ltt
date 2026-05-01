@@ -296,21 +296,70 @@ namespace Funₒ
       ⟪⟪x, is_in_fiber⟫, is_connected⟫
   end
 
--- theorem id_is_contractible {α : U} : Arrow.is_contractible (@Arrow.id α) :=
---   Λ y => ⟪⟪y, Arrow.id y =ₒ y⟫, Λ fib' => _⟫
+  abbrev is_equiv {α β : U} (f : α →ₒ β) : U :=
+    ishae f
 
-def U.equiv (α : U) (β : U) : U :=
-  Σₒ f : α →ₒ β, Arrow.is_contractible f
+  def equiv (α β : U) : U :=
+    Σₒ f : α →ₒ β, is_equiv f
 
-infix:20 " ≃ₒ " => U.equiv
+  def id_is_equiv {α : U} : is_equiv (@id α) := by
+    apply qinv_to_ishae
+    exact ⟪id, Homotopy.refl id, Homotopy.refl id⟫
 end Funₒ
 
--- def Id.idtoeqv {α β : U} (p : α =ₒ β) : (α ≃∘ β) :=
---   -- let idObj {γ : U} : γ →ₒ γ := Λ z => z
---   elim (P := fun α β _ => α ≃∘ β) (λ γ => Sigma.mk ⟨@Arrow.id γ, id_is_contractible⟩) α β p
 infix:20 " ≃ₒ " => Funₒ.equiv
 
-axiom U.univalence {α β : U} : (α ≃ₒ β) ≃ₒ (α =ₒ β)
+namespace Univalence
+  def canonical (α β : U) : α =ₒ β →ₒ α ≃ₒ β := by
+    introₒ p
+    path_inductionₒ p
+    exact ⟪Funₒ.id, Funₒ.id_is_equiv⟫
+
+  example : Natₒ ≃ₒ Natₒ := canonical Natₒ Natₒ (by rflₒ)
+
+  axiom univalence {α β : U} : Funₒ.is_equiv (canonical α β)
+
+  def eqv_to_id {α β : U} : (α ≃ₒ β) → α =ₒ β :=
+    let ⟪g, _, _⟫ := Funₒ.ishae_to_qinv (canonical α β) univalence
+    g
+end Univalence
+
+section Lemma_4_8_1
+  universe u
+  variable {α : U.{u}} {β : α → U.{u}} {a : α}
+  theorem fiber_pr₁_eqv_beta : @Funₒ.fiber (Sigma α β) _ (Pi.lam Sigma.pr₁) a ≃ₒ β a := by
+    admit
+end Lemma_4_8_1
+
+namespace Extensionality
+  -- def weak_extensionality {α : U} {P : α → U} (f : (x : α) →ₒ U.is_contractible (P x))
+  --                         : U.is_contractible (Πₒ x : α, P x) := by
+  --   let p := Univalence.eqv_to_id
+  section Lemma_4_9_2
+    universe u₁ u₂
+    variable {α β : U.{u₁}} {γ : U.{u₂}}
+    variable (e : α ≃ₒ β)
+    theorem lift_equiv_fun : (γ →ₒ α) ≃ₒ (γ →ₒ β) := by
+      have p := Univalence.eqv_to_id e
+      path_inductionₒ p
+      introₒ _
+      apply Univalence.canonical _ _ |> Pi.app
+      rflₒ
+  end Lemma_4_9_2
+
+  section Corollary_4_9_3
+    universe u
+    variable {α : U.{u}} {β : α → U.{u}} (p : Πₒ x : α, U.is_contractible (β x))
+
+    set_option pp.universes true in
+    theorem pr₁_eqv : @Sigma.pr₁ α β |> Pi.lam |> Funₒ.is_equiv := by
+      apply Funₒ.qinv_to_ishae
+      apply Funₒ.contr_to_qinv
+      introₒ x
+      rewriteₒ [Univalence.eqv_to_id fiber_pr₁_eqv_beta]
+      exact p x
+  end Corollary_4_9_3
+end Extensionality
 
 end Hott
 end
