@@ -471,5 +471,363 @@ namespace MatchingObject
 
 end MatchingObject
 
+namespace Presheaf
+@[ext]
+structure LayeredPresheaf (D : Type*) [DirectCategory D] (n : Nat) where
+  X : Psh (Below D n)
+  Y : OfRank D n → Type _
+  u {i : OfRank D n} {j : Below D n} : (j.point ⟶ i.point) → (Y i → X.obj (.op j))
+  coh {i : OfRank D n} {j j' : Below D n} (f : j.point ⟶ i.point) (g : j' ⟶ j)
+      : (X.map (.op g)) ∘ (u f) = u (g ≫ f)
+
+namespace LayeredPresheaf
+variable {D : Type*} [DirectCategory D] {n : Nat}
+
+def ext' (a b : LayeredPresheaf D n) (eqX : a.X = b.X) (eqY : a.Y = b.Y)
+         (eqU : ∀ {i : OfRank D n} {j : Below D n} (f : j.point ⟶ i.point),
+                eqToHom (C := Type _) (by rw [eqX]) ∘ a.u f ∘ eqToHom (C := Type _) (by rw [eqY]) = b.u f)
+         : a = b := by
+  induction a with | mk Xa Ya ua _ =>
+  induction b with | mk Xb Yb ub _ =>
+  cases eqX
+  cases eqY
+  simp
+  funext i j f
+  simp at eqU
+  apply eqU
+
+def of_psh (F : Psh (Below D (n+1))) : LayeredPresheaf D n where
+  X := restrict₁ F
+  Y i := F.obj <| .op <| .mk i.point <| by
+    erw [i.rank_is]
+    simp
+  u := by
+    intro i j f
+    apply F.map
+    apply Opposite.op
+    exact f
+  coh := by
+    intro i j j' f g
+    simp
+    let iup : Below D (n+1) := i
+    let jup : Below D (n+1) := j
+    let j'up : Below D (n+1) := j'
+    let fup : jup ⟶ iup := f
+    let gup : j'up ⟶ jup := g
+    show F.map gup.op ∘ F.map fup.op = F.map (fup.op ≫ gup.op)
+    rw [F.map_comp]
+    rfl
+
+namespace ToPsh
+  variable (self : LayeredPresheaf D n)
+
+  def obj (i : (Below D (n+1))ᵒᵖ) : Type _ :=
+    if h : rk i.unop = n then
+      self.Y ⟨i.unop.point, h⟩
+    else
+      self.X.obj <| .op <| i.unop.of_succ_of_rk_ne  h
+
+  def obj_rk_n (i : (Below D (n+1))ᵒᵖ) (h : rk i.unop = n)
+                       : obj self i = self.Y ⟨i.unop.point, h⟩ := by
+    unfold obj
+    rw [dif_pos]
+
+  def obj_rk_lt_n (i : (Below D (n+1))ᵒᵖ) (h : rk i.unop ≠ n)
+                  : let i' : Below D n := i.unop.of_succ_of_rk_ne  h
+                    obj self i = (self.X.obj (.op i')) := by
+    unfold obj
+    rw [dif_neg]
+
+  def map {j i : (Below D (n+1))ᵒᵖ} (f : j ⟶ i) : obj self j → obj self i :=
+    if h₁ : rk i.unop = n then
+      have h₂ : rk j.unop = n := by
+        apply Nat.le_antisymm
+        · apply Nat.le_of_lt_succ
+          apply j.unop.rank_is_lt
+        · calc
+            _ = _ := h₁.symm
+            _ ≤ _ := by
+              apply leq_of_map
+              exact f.unop
+      have i_eq_j : i = j := by
+        have := eq_of_map_of_rk_eq_rk (x := i.unop) (y := j.unop) f.unop <| by
+          trans n
+          · exact h₁
+          · exact h₂.symm
+        show ⟨i.unop⟩ = j
+        rw [this]
+      eqToHom <| show obj self j = obj self i by rw [i_eq_j]
+    else if h₂ : rk j.unop = n then
+      let i' : (Below D n)ᵒᵖ := .op <| i.unop.of_succ_of_rk_ne  (by trivial)
+      let j' : OfRank D n := ⟨j.unop.point, h₂⟩
+      have Xi_to_obj_i : self.X.obj i' → obj self i := eqToHom (C := Type _) <| by
+        rw [obj_rk_lt_n]
+      have obj_j_to_Yj : obj self j → self.Y j' := eqToHom (C := Type _) <| by rw [obj_rk_n]
+      have Yj_to_Xi : self.Y j' → self.X.obj i' := self.u f.unop
+      Xi_to_obj_i ∘ Yj_to_Xi ∘ obj_j_to_Yj
+    else
+      let i' : (Below D n)ᵒᵖ := .op <| i.unop.of_succ_of_rk_ne (by trivial)
+      let j' : (Below D n)ᵒᵖ := .op <| j.unop.of_succ_of_rk_ne (by trivial)
+      have Xi_to_obj_i : self.X.obj i' → obj self i := eqToHom (C := Type _) <| by
+        rw [obj_rk_lt_n]
+      have obj_j_to_Xi : obj self j → self.X.obj j' := eqToHom (C := Type _) <| by
+        rw [obj_rk_lt_n]
+      Xi_to_obj_i ∘ self.X.map f ∘ obj_j_to_Xi
+
+  def map_rk_lt_n {j i : (Below D (n+1))ᵒᵖ}  (f : j ⟶ i) (p : rk j.unop ≠ n) (q : rk i.unop ≠ n)
+                  : map self f = eqToHom (obj_rk_lt_n self i q).symm
+                                 ∘ self.X.map f
+                                 ∘ eqToHom (obj_rk_lt_n self j p) := by
+    unfold map
+    dsimp only
+    split_ifs <;> trivial
+
+  def map_id (i : (Below D (n+1))ᵒᵖ) : map self (CategoryStruct.id i) = id := by
+    unfold map
+    dsimp only
+    split_ifs
+    · generalize_proofs
+      rename_i p
+      cases p
+      rfl
+    · erw [self.X.map_id]
+      apply something
+  where
+    something {α β : Type _} (p : α = β) (q : β = α)
+                : eqToHom (C := Type _) q ∘ id ∘ eqToHom (C := Type _) p = id := by
+      induction p
+      rfl
+
+  def map_comp {k j i : (Below D (n+1))ᵒᵖ} (f : k ⟶ j) (g : j ⟶ i)
+               : map self (f ≫ g) = map self g ∘ map self f := by
+    unfold map
+    split_ifs <;> dsimp only
+    · generalize_proofs
+      rename_i p₁ p₂ p₃
+      have : i = j := by
+        show Opposite.op i.unop = ⟨j.unop⟩
+        apply congrArg Opposite.op
+        apply eq_of_map_of_rk_eq_rk
+        · exact g.unop
+        · trans n
+          repeat first | assumption | apply Eq.symm
+      induction this
+      simp
+    · exfalso
+      rename_i rk_i_eq_n rk_j_neq_n rk_k_eq_n
+      apply rk_j_neq_n
+      apply Nat.le_antisymm
+      · apply Nat.le_of_lt_succ
+        apply j.unop.rank_is_lt
+      · conv => lhs; rw [← rk_i_eq_n]
+        apply leq_of_map
+        exact g.unop
+    · exfalso
+      rename_i rk_i_eq_n rk_j_neq_n rk_k_neq_n
+      apply rk_j_neq_n
+      apply Nat.le_antisymm
+      · apply Nat.le_of_lt_succ
+        apply j.unop.rank_is_lt
+      · conv => lhs; rw [← rk_i_eq_n]
+        apply leq_of_map
+        exact g.unop
+    · have : j = k := by
+        show Opposite.op j.unop = ⟨_⟩
+        apply congrArg Opposite.op
+        apply eq_of_map_of_rk_eq_rk
+        · exact f.unop
+        · trans n
+          repeat first | assumption | apply Eq.symm
+      induction this
+      simp
+    · let i' : Below D n := i.unop.of_succ_of_rk_ne (by assumption)
+      let j' : Below D n := j.unop.of_succ_of_rk_ne (by assumption)
+      let k' : OfRank D n := ⟨k.unop.point, by assumption⟩
+      let f' : j'.point ⟶ k'.point := f.unop
+      let g' : i' ⟶ j' := g.unop
+      have : _ = self.u (f ≫ g).unop := self.coh (i := k') (j := j') (j' := i') f' g'
+      rw [← this]
+      generalize_proofs
+      rename_i pf₁ pf₂ pf₃ pf₄ pf₅
+      conv =>
+        rhs
+        rw [comp_assoc,
+            comp_assoc (eqToHom pf₁) _ (eqToHom pf₃),
+            ← comp_assoc _ _ (eqToHom pf₅),
+            eqToHom_eq_id pf₃ pf₅
+            ]
+        dsimp
+        rw [← comp_assoc, comp_assoc _ _ (eqToHom pf₂)]
+      rfl
+    · exfalso
+      rename_i rk_i_neq_n rk_j_neq_n rk_k_eq_n
+      apply rk_j_neq_n
+      apply Nat.le_antisymm
+      · apply Nat.le_of_lt_succ
+        apply k.unop.rank_is_lt
+      · conv => lhs; rw [← rk_k_eq_n]
+        apply leq_of_map
+        exact f.unop
+    · let i' : Below D n := i.unop.of_succ_of_rk_ne (by assumption)
+      let j' : Below D n := j.unop.of_succ_of_rk_ne (by assumption)
+      let k' : Below D n := k.unop.of_succ_of_rk_ne (by assumption)
+      generalize_proofs
+      rename_i pf₁ pf₂ pf₃ pf₄ pf₅
+      conv =>
+        rhs
+        rw [comp_assoc,
+            comp_assoc (eqToHom pf₁) _ (eqToHom pf₃),
+            ← comp_assoc _ _ (eqToHom pf₅),
+            eqToHom_eq_id pf₃ pf₅
+            ]
+        dsimp
+        rw [← comp_assoc, comp_assoc _ _ (eqToHom pf₂)]
+      erw [self.X.map_comp (X := .op k') (Y := .op j') (Z := .op i') f g]
+      rfl
+  where
+    eqToHom_eq_id {α β : Type _} (p : α = β) (q : β = α) : eqToHom p ∘ eqToHom q = id := by
+      induction p
+      rfl
+    comp_assoc {α β γ δ : Type _} (f : γ → δ) (g : β → γ) (h : α → β) : f ∘ (g ∘ h) = (f ∘ g) ∘ h := rfl
+
+end ToPsh
+
+def to_psh (self : LayeredPresheaf D n) : Psh (Below D (n+1)) where
+  obj := ToPsh.obj self
+  map := ToPsh.map self
+  map_id := ToPsh.map_id self
+  map_comp := ToPsh.map_comp self
+
+@[simp]
+def left_inv : Function.LeftInverse to_psh (of_psh (D := D) (n := n)) := by
+  intro F
+  induction F
+  rename_i a map_id map_comp
+  induction a
+  rename_i obj map
+  apply CategoryTheory.Functor.ext
+  case mk.mk.h_obj =>
+    intro i
+    unfold of_psh to_psh ToPsh.obj
+    dsimp only
+    split_ifs <;> rfl
+  · intro j i f
+    unfold of_psh to_psh ToPsh.map
+    dsimp only at map_id map_comp ⊢
+    split_ifs
+    · have : i = j := by
+        show Opposite.op i.unop = ⟨_⟩
+        apply congrArg Opposite.op
+        apply eq_of_map_of_rk_eq_rk
+        · exact f.unop
+        · apply Nat.le_antisymm
+          · apply leq_of_map
+            exact f.unop
+          · calc
+              _ ≤ n := by
+                apply Nat.le_of_lt_succ
+                apply j.unop.rank_is_lt
+              _ = _ := by apply Eq.symm; assumption
+      induction this
+      induction f
+      rename_i f
+      rw [eq_id (x := i.unop) f]
+      have : { unop := 𝟙 i.unop } = 𝟙 i := by
+        rfl
+      rw [this]
+      simp [map_id]
+      apply Eq.symm
+      generalize_proofs
+      apply hello <;> assumption
+    · rename_i h₁ h₂
+      exfalso
+      apply h₂
+      apply Nat.le_antisymm
+      · apply Nat.le_of_lt_succ
+        apply j.unop.rank_is_lt
+      · conv => lhs; rw [← h₁]
+        apply leq_of_map
+        exact f.unop
+    · rfl
+    · simp
+      rfl
+where
+  hello {α β : Type _} (p : α = β) (q : β = α) : eqToHom p ∘ id ∘ eqToHom q = id := by
+    induction p
+    rfl
+
+@[simp]
+def right_inv : Function.RightInverse to_psh (of_psh (D := D) (n := n)) := by
+  intro ⟨X, Y, u, coh⟩
+  unfold of_psh to_psh
+  dsimp only
+  apply LayeredPresheaf.ext'
+  case eqX =>
+    dsimp only
+    apply CategoryTheory.Functor.ext
+    · intro j i f
+      unfold ToPsh.map restrict₁
+      simp
+      split_ifs
+      · exfalso
+        apply Nat.lt_irrefl n
+        rename_i h
+        conv => lhs; rw [← h]
+        apply Below.rank_is_lt
+      · exfalso
+        apply Nat.lt_irrefl n
+        rename_i h
+        conv => lhs; rw [← h]
+        apply Below.rank_is_lt
+      · rfl
+    · intro i
+      unfold ToPsh.obj restrict₁
+      simp
+      split_ifs
+      · exfalso
+        apply Nat.lt_irrefl n
+        rename_i h
+        conv => lhs; rw [← h]
+        apply Below.rank_is_lt
+      · rfl
+  case eqY =>
+    unfold ToPsh.obj
+    funext i
+    simp
+    split_ifs <;> try rfl
+    exfalso
+    rename_i h
+    apply h
+    apply i.rank_is
+  case eqU =>
+    intro i j f
+    unfold ToPsh.map
+    simp only
+    split_ifs
+    · exfalso
+      rename_i h
+      apply Nat.lt_irrefl n
+      conv => lhs; rw [← h]
+      simp
+      apply Below.rank_is_lt
+    · generalize_proofs
+      rename_i pf₁ pf₂ pf₃ pf₄ pf₅ pf₆ pf₇
+      show (eqToHom pf₁ ∘ eqToHom pf₄) ∘ u f ∘ (eqToHom pf₆ ∘ eqToHom pf₇) = u f
+      simp
+    · exfalso
+      rename_i h
+      apply h
+      apply OfRank.rank_is
+
+def eqv_to_next_layer (D : Type*) [DirectCategory D] (n : Nat)
+                      : Psh (Below D (n+1)) ≃ LayeredPresheaf D n where
+  toFun F := of_psh F
+  invFun lp := to_psh lp
+  left_inv := left_inv
+  right_inv := right_inv
+
+end LayeredPresheaf
+end Presheaf
+
 end Tltt
 end
