@@ -1,3 +1,4 @@
+open Lean.PrettyPrinter (Unexpander)
 section
 set_option autoImplicit false
 namespace Hott
@@ -103,12 +104,16 @@ syntax (priority := high) obj_fun_binder ident (":" term)? "=>" term : term
 macro_rules
   | `($_:obj_fun_binder $var $[: $type]? => $body) => `(Pi.lam fun $var $[: $type]? => $body)
 
-syntax "Πₒ" ident " : " term ", " term : term
+syntax "Πₒ " ident " : " term ", " term : term
 macro_rules
   | `(Πₒ $x : $α, $P) => `(Pi $α (fun $x : $α => $P))
 
 macro "(" x:ident " : " α:term ") →ₒ " P:term : term => `(Pi $α (fun $x => $P))
 
+@[app_unexpander Pi]
+def unexpand_pi : Unexpander
+  | `($_ $α fun $x:ident => $β) => `(Πₒ $x : $α, $β)
+  | _ => throw ()
 
 syntax "introₒ" notFollowedBy("|") (ppSpace colGt term:max)* : tactic
 macro_rules
@@ -159,12 +164,20 @@ syntax "Σₒ" ident ":" term ", " term : term
 macro_rules
   | `(Σₒ $x : $α, $P) => `(Sigma $α (fun $x : $α => $P))
 
+@[app_unexpander Sigma]
+def unexpand_sigma : Unexpander
+  | `($_ $α fun $x:ident => $β) => ``(Σₒ $x : $α, $β)
+  | _ => throw ()
+
 syntax "⟪" term ", " term,+ "⟫" : term
 macro_rules
   | `(⟪$left, $right⟫) => `(Sigma.mk ⟨$left, $right⟩)
   | `(⟪$x, $y, $tl,*⟫) => `(⟪$x, ⟪$y, $tl,*⟫⟫)
--- macro "⟪" left:term ", " right:term "⟫" : term => `(Sigma.mk ⟨$left, $right⟩)
--- macro "⟪" t1:term ", " t2:term ", " t3:term,+ "⟫" : term => `(⟪$t1, ⟪$t2, $t3,*⟫⟫)
+
+@[app_unexpander Sigma.mk]
+def unexpand_sigma_mk : Unexpander
+  | `($_ ⟨$x, $y⟩) => ``(⟪$x, $y⟫)
+  | _ => throw ()
 
 -- Coproduct
 
@@ -172,6 +185,11 @@ def Plus (α : U) (β : U) : U :=
   U.fromType (α ⊕ β)
   
 infixr:30 " ⊕ₒ " => Plus
+
+@[app_unexpander Plus]
+def unexpand_plus : Unexpander
+  | `($_ $α $β) => ``($α ⊕ₒ $β)
+  | _ => throw ()
 
 namespace Plus
   @[match_pattern]
@@ -182,8 +200,7 @@ namespace Plus
   def inr {α : U} {β : U} (b : β) : α ⊕ₒ β :=
     El.mk (Sum.inr b)
 
-  def elim {α : U} {β : U} {P : α ⊕ₒ β → U}
-    (l : (a : α) → P (inl a)) (r : (b : β) → P (inr b))
+  def elim {α : U} {β : U} {P : α ⊕ₒ β → U} (l : (a : α) → P (inl a)) (r : (b : β) → P (inr b))
     (x : α ⊕ₒ β) : P x :=
     match x with
     | ⟨.inl a⟩ => l a
@@ -197,8 +214,10 @@ def Times (α : U) (β : U) : U :=
 
 infixr:35 " ×ₒ " => Times
 
--- inductiveₒ A (α₁ : U) ... (αₙ : U) : U where
---   | c₁ (_ : β₁) ... (_ : βₘ) : A
+@[app_unexpander Times]
+def unexpand_times : Unexpander
+  | `($_ $α $β) => ``($α ×ₒ $β)
+  | _ => throw ()
 
 -- Unit
 
@@ -209,6 +228,12 @@ namespace Unitₒ
   @[match_pattern]
   def point : Unitₒ := ⟨()⟩
 end Unitₒ
+
+notation "()ₒ" => Unitₒ.point
+
+@[app_unexpander Unitₒ.point]
+def unexpand_unit_point : Unexpander
+  | `($_) => ``(()ₒ)
 
 -- Counit
 
@@ -258,7 +283,7 @@ namespace InnerId
     (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : InnerId x y)
     : (P x y p) :=
     match p with
-    | .refl _ => h _
+    | .refl _ => h x
 
   def symm.{i} {α : Type i} (x y : α) (p : InnerId x y) : InnerId y x :=
     match p with
@@ -274,6 +299,11 @@ def Id.{i} {α : U.{i}} (x y : α) : U.{i} :=
 
 infix:40 " =ₒ " => Id
 
+@[app_unexpander Id]
+def unexpand_id : Unexpander
+  | `($_ $x $y) => ``($x =ₒ $y)
+  | _ => throw ()
+
 namespace Id
   @[match_pattern]
   def refl {α : U} (x : α) : x =ₒ x :=
@@ -287,6 +317,13 @@ namespace Id
   def inv {α : U} {x y : α} (p : x =ₒ y): y =ₒ x :=
     symm x y p
 
+  postfix:max "⁻¹ " => Id.inv
+
+  @[app_unexpander Id.inv]
+  def unexpand_inv : Unexpander
+    | `($_ $x) => ``($x⁻¹)
+    | _ => throw ()
+
   def trans {α : U} (x y z : α) (p₁ : x =ₒ y) (p₂ : y =ₒ z) : x =ₒ z := by
     apply El.mk
     apply InnerId.trans <;> apply El.intoU <;> assumption
@@ -296,6 +333,11 @@ namespace Id
     trans x y z p₁ p₂
 
   infix:45 " ⬝ " => concat
+
+  @[app_unexpander concat]
+  def unexpand_concat : Unexpander
+    | `($_ $p₁ $p₂) => ``($p₁ ⬝ $p₂)
+    | _ => throw ()
 
   def elim {α : U} {P : (x : α) → (y : α) → x =ₒ y → U}
            (h : (x : α) → P x x (refl x)) (x : α) (y : α) (p : x =ₒ y) : P x y p := by
@@ -320,8 +362,6 @@ namespace Id
     mp (symm α β h) b
 end Id
 
-postfix:max "⁻¹ " => Id.inv
-
-
-
 end Hott
+
+end
