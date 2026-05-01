@@ -995,7 +995,8 @@ namespace InductiveDecl
     let (lctx, local_insts, vars) ← removeUnused vars ind_type
     withLCtx lctx local_insts <| k vars
 
-  def update_params (vars : Array Expr) (ind_type : PartialObjInductiveType) : TermElabM PartialObjInductiveType := do
+  def update_params (vars : Array Expr) (ind_type : PartialObjInductiveType)
+                    : TermElabM PartialObjInductiveType := do
     let type ← mkForallFVars vars ind_type.type
     let ctors ← ind_type.constructors.mapM fun ctor => do
       let ctorType ← withExplicitToImplicit vars (mkForallFVars vars ctor.type)
@@ -1014,8 +1015,8 @@ namespace InductiveDecl
       Lean.Elab.Term.levelMVarToParam type (except := fun mvarId => univToInfer? == some mvarId)
 
   /-- Execute `k` using the syntactic reference to the constructor branch. -/
-  def with_ctor_ref {m α} [Monad m] [MonadRef m] (view : ObjInductiveView) (ctor_name : Name) (k : m α)
-                    : m α := do
+  def with_ctor_ref {m α} [Monad m] [MonadRef m] (view : ObjInductiveView) (ctor_name : Name)
+                    (k : m α) : m α := do
     for ctor_view in view.constructors do
       if ctor_view.name == ctor_name then
         return ← withRef ctor_view.ref k

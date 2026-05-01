@@ -21,24 +21,25 @@ namespace Funₒ
   def idₒ.beta {α : U} {x : α} : idₒ x = x :=
     rfl
 
-  @[reducible]
-  def after {α β γ : U} (f : α →ₒ β) (g : β →ₒ γ) : α →ₒ γ :=
+  abbrev after {α β γ : U} (f : α →ₒ β) (g : β →ₒ γ) : α →ₒ γ :=
     Λ x => g $ₒ f x
 
-  @[reducible]
-  def compose {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) : α →ₒ γ :=
+  abbrev compose {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) : α →ₒ γ :=
     Λ x => f $ₒ g x
 
   infixr:90 " ∘ₒ " => compose
 
   @[simp]
-  theorem compose.beta {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) (x : α) : (f ∘ₒ g) x = f (g x) := rfl
+  theorem compose.beta {α β γ : U} (f : β →ₒ γ) (g : α →ₒ β) (x : α) : (f ∘ₒ g) x = f (g x) :=
+    rfl
 
   @[simp]
-  theorem id_comp {α β : U} (f : α →ₒ β) : idₒ ∘ₒ f = f := rfl
+  theorem id_comp {α β : U} (f : α →ₒ β) : idₒ ∘ₒ f = f :=
+    rfl
 
   @[simp]
-  theorem comp_id {α β : U} (f : α →ₒ β) : f ∘ₒ idₒ = f := rfl
+  theorem comp_id {α β : U} (f : α →ₒ β) : f ∘ₒ idₒ = f :=
+    rfl
 end Funₒ
 
 namespace Id
@@ -613,9 +614,9 @@ namespace Unitₒ
       exact ()ₒ
     apply Funₒ.qinv_to_equiv
     exhibitₒ by
-      introₒ ()ₒ
-      refine Unitₒ.elim (motive := fun x => x =ₒ y) ?_ x
-      refine Unitₒ.elim (motive := fun y => ()ₒ =ₒ y) ?_ y
+      introₒ _
+      refine Unitₒ.recₒ (motive := fun x => x =ₒ y) ?_ x
+      refine Unitₒ.recₒ (motive := fun y => ()ₒ =ₒ y) ?_ y
       rflₒ
     exhibitₒ by
       introₒ z
@@ -647,10 +648,10 @@ namespace U.is_contractible
       exact ()ₒ
     apply Funₒ.qinv_to_equiv
     exhibitₒ by
-      introₒ ()ₒ
+      introₒ _
       exact pr₁ cntrl
     exhibitₒ by
-      introₒ ()ₒ
+      introₒ _
       rflₒ
     introₒ x
     exact pr₂ cntrl x
@@ -1009,7 +1010,7 @@ namespace Extensionality
                        =ₒ (Univalence.canonical _ _ p)₊1 ∘ₒ f := by
         path_inductionₒ p
         simp
-        rwₒ [lift_equiv_fun.beta]
+        rewriteₒ [@lift_equiv_fun.beta _ _]
         rflₒ
       have h := underlying (Univalence.eqv_to_id e)
       rewriteₒ [Univalence.canonical_eqv_to_id _] at h
@@ -1098,7 +1099,6 @@ namespace Extensionality
           introₒ g
           exhibitₒ funₒ x => ⟪x, g x⟫
           unfold into_sum_of_contractible_is_into_base
-          simp
           apply lift_equiv_fun.pr₁.beta _ _
         introₒ g
         simp
