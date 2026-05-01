@@ -1,0 +1,11 @@
+#+title:2-level type theory in Lean
+#+author:jthulhu
+
+This repository contains an implementation of 2-level type theory in Lean, and, as
+proof-of-concept, the formalization of function extensionality in HoTT.  This entails that
+approximatively one third of the first part of the HoTT book is formalized.
+
+This repository is currently unmaintained, and was built with Lean 4.10.0, which is far behind
+from the current latest version of Lean 4.
+
+If you have any question or comment, please feel free to contact me at /my username/ at posteo.net.
