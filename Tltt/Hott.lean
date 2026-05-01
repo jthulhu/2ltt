@@ -1,6 +1,8 @@
 import Tltt.ObjLang
 import Tltt.Tactics
+import Mathlib.Logic.Equiv.Defs
 
+open Lean.PrettyPrinter (Unexpander)
 
 noncomputable section
 
@@ -9,6 +11,85 @@ noncomputable section
 -- object language.
 
 namespace Tltt.Hott
+
+def Pi.pi_eqv_obj_pi {α : U} {β : α → U} : (∀ x, β x) ≃ Πₒ x : α, β x where
+  toFun := Pi.lam
+  invFun := Pi.app
+  left_inv := by
+    intro a
+    rfl
+  right_inv := by
+    intro a
+    rfl
+
+def Sigmaₒ.sigma_eqv_obj_sigma {α : U} {β : α → U} : (Σ x : α, β x) ≃ Σₒ x : α, β x where
+  toFun a :=
+    ⟪a.1, a.2⟫
+  invFun a :=
+    ⟨a₊1, a₊2⟩
+  left_inv := by
+    intro a
+    rfl'
+  right_inv := by
+    intro a
+    rfl'
+
+/--
+  Universe-polymorph lifting: this embeds a type living in a universe in a higher universe. The
+  resulting type is equivalent to the original one, which is shown in `PLiftₒ.equiv_inner`.
+-/
+inductiveₒ PLiftₒ.{u₁, u₂} (α : U.{u₁}) : U.{max u₁ u₂} where
+  | up (down : α) : PLiftₒ α
+
+namespace PLiftₒ
+  def down {α : U} (x : PLiftₒ α) : α :=
+    PLiftₒ.recₒ (motive := fun _ => α) id x
+
+  def equiv_inner {α : U} : PLiftₒ α ≃ α where
+    toFun x :=
+      x₊down
+    invFun x :=
+      PLiftₒ.up x
+    left_inv := by
+      intro x
+      rfl
+    right_inv := by
+      intro x
+      rfl
+
+end PLiftₒ
+
+inductiveₒ Emptyₒ : U where
+
+namespace Emptyₒ
+  protected def elim {α : U} (self : Emptyₒ) : α :=
+    Emptyₒ.recₒ (motive := fun _ => α) self
+end Emptyₒ
+
+inductiveₒ Natₒ : U where
+  | zero : Natₒ
+  | succ (n : Natₒ) : Natₒ
+
+namespace Natₒ
+  def ofNat : Nat → Natₒ
+    | 0 => Natₒ.zero
+    | n+1 => (ofNat n)₊succ
+
+  instance (n : Nat) : OfNat Natₒ n where
+    ofNat := ofNat n
+
+  def add (n : Natₒ) (m : Natₒ) : Natₒ :=
+    Natₒ.recₒ m (fun _ k => Natₒ.succ k) n
+
+  def mul (n : Natₒ) (m : Natₒ) : Natₒ :=
+    Natₒ.recₒ Natₒ.zero (fun _ k => add k m) n
+
+  instance : Add Natₒ where
+    add := add
+
+  instance : Mul Natₒ where
+    mul := mul
+end Natₒ
 
 -- Composition
 
@@ -604,9 +685,23 @@ namespace Funₒ
     rfl'
 end Funₒ
 
+inductiveₒ Unitₒ.{u} : U.{u} where
+  | point : Unitₒ
+
 namespace Unitₒ
-  theorem eq_unit (x : Unitₒ) : x =ₒ ()ₒ := by
-    apply Unitₒ.elim (motive := fun x => x =ₒ ()ₒ) (Id.refl ()ₒ)
+  @[simp]
+  protected def elim.beta {motive : Unitₒ → U} (unit_case : motive point)
+                          : @Unitₒ.recₒ motive unit_case point = unit_case := rfl
+
+  notation "()ₒ" => Unitₒ.point
+
+  @[app_unexpander Unitₒ.point]
+  def unexpand_unit_point : Unexpander
+    | `($_) => ``(()ₒ)
+
+  @[simp]
+  theorem eq_unit (x : Unitₒ) : x = ()ₒ := by
+    rfl
 
   def id_is_unit.{u} (x y : Unitₒ.{u}) : (x =ₒ y) ≃ₒ Unitₒ.{u} := by
     exhibitₒ by
@@ -621,13 +716,8 @@ namespace Unitₒ
     exhibitₒ by
       introₒ z
       simp
-      rewriteₒ [eq_unit z]
       rflₒ
     introₒ p
-    simp
-    refine Unitₒ.elim (motive := fun y => (Unitₒ.elim (motive := fun x => x =ₒ y) (Unitₒ.elim (motive := fun y => ()ₒ =ₒ y) (Id.refl ()ₒ) y) x) =ₒ p) ?_ y
-    simp
-    refine Unitₒ.elim (motive := fun x => (Unitₒ.elim (Id.refl ()ₒ) x) =ₒ p) ?_ x
     simp
     path_inductionₒ p
     rflₒ
@@ -635,7 +725,8 @@ namespace Unitₒ
   def loop_is_refl.{u} {x : Unitₒ.{u}} (p : x =ₒ x) : p =ₒ Id.refl x := by
     let ⟪f, g, gf_id, _⟫ := id_is_unit x x
     have fp_is_frefl : f p =ₒ f (Id.refl x) := by
-      rwₒ [eq_unit (f p), eq_unit (f (Id.refl x))]
+      simp
+      rflₒ
     have gfp_is_gfrefl := g₊ap fp_is_frefl
     rewriteₒ [gf_id _, gf_id _] at gfp_is_gfrefl
     assumption
