@@ -90,11 +90,9 @@ def Boolₒ : U :=
   U.fromType Bool
 
 namespace Boolₒ
-  @[match_pattern]
   def trueₒ : Boolₒ :=
     El.mk true
 
-  @[match_pattern]
   def falseₒ : Boolₒ :=
     El.mk false
 
