@@ -80,11 +80,11 @@ namespace SemiSimplexCat
           apply Nat.succ_le_of_lt
           apply Fin.isLt
 
-  def rank.map_id : ∀ n : SemiSimplexCat, map (𝟙 n) = 𝟙 (obj n) := by
+  theorem rank.map_id : ∀ n : SemiSimplexCat, map (𝟙 n) = 𝟙 (obj n) := by
     intro (n : Nat)
     rfl
 
-  def rank.map_comp : ∀ {m n l : SemiSimplexCat} (f : Hom m n) (g : Hom n l),
+  theorem rank.map_comp : ∀ {m n l : SemiSimplexCat} (f : Hom m n) (g : Hom n l),
                       map (SemiSimplexCat.comp f g) = map f ≫ map g := by
     intro (m : Nat) (n : Nat) (l : Nat) f g
     rfl
