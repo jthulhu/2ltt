@@ -752,6 +752,7 @@ namespace InductiveDecl
       else
         return false
     | _ =>
+      trace[Tltt.inductiveₒ] "{repr type}"
       return liftedU? type |>.isSome
 
   /-- Elaborate the header of the declaration, checking for the following properties:
@@ -1199,7 +1200,7 @@ namespace InductiveDecl
       safety := .safe
       hints := .regular <| getMaxHeight (← getEnv) constr_val + 1
     }
-    trace[Tltt.inductiveₒ.constr] m!"{constructor.short_name} : {constructor.type} :={indentExpr constr_val}"
+    trace[Tltt.inductiveₒ.constr] m!"{constructor.short_name} : {constructor.type} := {indentExpr constr_val}"
     let constr_decl := Declaration.defnDecl constr_def_val
     ensureNoUnassignedMVars constr_decl
     addDecl constr_decl
