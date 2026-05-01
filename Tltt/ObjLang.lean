@@ -182,49 +182,49 @@ instance {α β : U} : Coe (α → β) (α →ₒ β) where
   coe := Pi.lam
 
 -- Sigma types
-def Sigma (α : U) (β : α → U) : U :=
+def Sigmaₒ (α : U) (β : α → U) : U :=
   U.fromType (Σ a : α, β a)
 
-namespace Sigma
+namespace Sigmaₒ
   @[match_pattern, inline]
-  def mk {α : U} {β : α → U} (x : Σ a : α, β a) : Sigma α β :=
-    El.mk x
+  def mk {α : U} {β : α → U} (x : α) (y : β x) : Sigmaₒ α β :=
+    El.mk (Sigma.mk x y)
 
   @[match_pattern, inline]
-  def pr₁ {α : U} {β : α → U} (x : Sigma α β) : α :=
+  def pr₁ {α : U} {β : α → U} (x : Sigmaₒ α β) : α :=
     x.intoU.1
 
   @[match_pattern, inline]
-  def pr₂ {α : U} {β : α → U} (x : Sigma α β) : β (pr₁ x) :=
+  def pr₂ {α : U} {β : α → U} (x : Sigmaₒ α β) : β (pr₁ x) :=
     x.intoU.2
 
   @[simp]
-  def beta_pr₁ {α : U} {β : α → U} (x : α) (y : β x) : pr₁ (mk ⟨x, y⟩) = x := by rfl
+  def beta_pr₁ {α : U} {β : α → U} (x : α) (y : β x) : pr₁ (mk x y) = x := by rfl
 
   @[simp]
-  def beta_pr₂ {α : U} {β : α → U} (x : α) (y : β x) : pr₂ (mk ⟨x, y⟩) = y := by rfl
+  def beta_pr₂ {α : U} {β : α → U} (x : α) (y : β x) : pr₂ (mk x y) = y := by rfl
 
-  @[simp]
-  def eta {α : U} {β : α → U} (x : Sigma α β) : mk ⟨pr₁ x, pr₂ x⟩ = x := by rfl
-end Sigma
+  -- @[simp]
+  def eta {α : U} {β : α → U} (x : Sigmaₒ α β) : mk (pr₁ x) (pr₂ x) = x := by rfl
+end Sigmaₒ
 
-syntax "Σₒ" ident ":" term ", " term : term
+syntax "Σₒ " ident " : " term ", " term : term
 macro_rules
-  | `(Σₒ $x : $α, $P) => `(Sigma $α (fun $x : $α => $P))
+  | `(Σₒ $x : $α, $P) => `(Sigmaₒ $α (fun $x : $α => $P))
 
-@[app_unexpander Sigma]
+@[app_unexpander Sigmaₒ]
 def unexpand_sigma : Unexpander
   | `($_ $α fun $x:ident => $β) => ``(Σₒ $x : $α, $β)
   | _ => throw ()
 
 syntax "⟪" term ", " term,+ "⟫" : term
 macro_rules
-  | `(⟪$left, $right⟫) => `(Sigma.mk ⟨$left, $right⟩)
+  | `(⟪$left, $right⟫) => `(Sigmaₒ.mk $left $right)
   | `(⟪$x, $y, $tl,*⟫) => `(⟪$x, ⟪$y, $tl,*⟫⟫)
 
-@[app_unexpander Sigma.mk]
+@[app_unexpander Sigmaₒ.mk]
 def unexpand_sigma_mk : Unexpander
-  | `($_ ⟨$x, $y⟩) => ``(⟪$x, $y⟫)
+  | `($_ $x $y) => ``(⟪$x, $y⟫)
   | _ => throw ()
 
 -- Coproduct
@@ -258,7 +258,7 @@ end Plus
 -- Product
 
 def Times (α : U) (β : U) : U :=
-  Sigma α (fun _ => β)
+  Sigmaₒ α (fun _ => β)
 
 infixr:35 " ×ₒ " => Times
 

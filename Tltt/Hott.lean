@@ -268,18 +268,18 @@ namespace Funₒ
     ⟪g, H, h₁⟫
 
   theorem contr_to_qinv (c : is_contractible f) : qinv f :=
-    let g : β →ₒ α := λₒ x => Sigma.pr₁ (Sigma.pr₁ (c x))
+    let g : β →ₒ α := λₒ x => Sigmaₒ.pr₁ (Sigmaₒ.pr₁ (c x))
     let h₁ : f ∘ₒ g ~ id := by
       introₒ x
-      let path := Sigma.pr₂ (Sigma.pr₁ (c x))
+      let path := Sigmaₒ.pr₂ (Sigmaₒ.pr₁ (c x))
       simp at *
       assumption
     let h₂ : g ∘ₒ f ~ id := by
       introₒ x
-      let is_unique := Sigma.pr₂ (c (f x))
+      let is_unique := Sigmaₒ.pr₂ (c (f x))
       let f_x_in_fiber_f_x : fiber f (f x) := ⟪x, by rflₒ⟫
       let path := is_unique f_x_in_fiber_f_x
-      let h := Id.ap Sigma.pr₁ path
+      let h := Id.ap (Pi.lam Sigmaₒ.pr₁) path
       simp at h
       exact h
     ⟪g, h₁, h₂⟫
@@ -324,8 +324,8 @@ end Univalence
 section Lemma_4_8_1
   universe u
   variable {α : U.{u}} {β : α → U.{u}} {a : α}
-  theorem fiber_pr₁_eqv_beta : @Funₒ.fiber (Sigma α β) _ (Pi.lam Sigma.pr₁) a ≃ₒ β a := by
     admit
+  theorem fiber_pr₁_eqv_beta : @Funₒ.fiber (Sigmaₒ α β) _ (Pi.lam Sigmaₒ.pr₁) a ≃ₒ β a := by
 end Lemma_4_8_1
 
 namespace Extensionality
@@ -348,7 +348,7 @@ namespace Extensionality
     variable {α : U.{u}} {β : α → U.{u}} (p : Πₒ x : α, U.is_contractible (β x))
 
     set_option pp.universes true in
-    theorem pr₁_eqv : @Sigma.pr₁ α β |> Pi.lam |> Funₒ.is_equiv := by
+    theorem pr₁_eqv : @Sigmaₒ.pr₁ α β |> Pi.lam |> Funₒ.is_equiv := by
       apply Funₒ.qinv_to_ishae
       apply Funₒ.contr_to_qinv
       introₒ x
